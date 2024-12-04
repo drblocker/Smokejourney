@@ -1,4 +1,4 @@
-# Cigar Brands Directory
+ # Cigar Brands Directory
 
 ## 1
 ### 1876 Reserve
@@ -116,10 +116,6 @@
 - Sumatra
 - Vintage
 
-### Alec & Bradley
-- Blind Faith
-- Gatekeeper
-- Kintsugi
 
 ### Alec Bradley
 - American Classic Blend
@@ -162,6 +158,9 @@
 - Trilogy
 - V2L Black
 - White Gold
+- Blind Faith
+- Gatekeeper
+- Kintsugi
 
 ### Arturo Fuente
 - Chateau Fuente Series

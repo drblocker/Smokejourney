@@ -122,3 +122,5 @@
 - Network state monitoring
 - Offline capability
 - Background task processing
+- use sensorpush api
+- cache first approach
