@@ -15,7 +15,11 @@ struct UserProfileTab: View {
                     }
                     
                     Section("Account") {
-                        Button(role: .destructive, action: signOut) {
+                        Button(role: .destructive) {
+                            Task {
+                                await signOut()
+                            }
+                        } label: {
                             Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
                         }
                     }
@@ -25,17 +29,19 @@ struct UserProfileTab: View {
         }
     }
     
-    private func signOut() {
+    private func signOut() async {
         // Clear user data
         if let user = users.first {
             modelContext.delete(user)
         }
         
         // Sign out from services
-        SensorPushService.shared.signOut()
+        await SensorPushService.shared.signOut()
         
         // Update authentication state
-        isAuthenticated = false
+        await MainActor.run {
+            isAuthenticated = false
+        }
     }
 }
 

@@ -1,0 +1,19 @@
+# Project Files Tracking
+
+## Source Files
+- file.txt - Main file tracking document
+
+## Documentation
+- None yet
+
+## Configuration
+- None yet
+
+## Notes
+- Created initial file tracking document
+- Last updated: [Current Date]
+
+## To Do
+- Add more files as project grows
+- Organize files by category
+- Add file descriptions 

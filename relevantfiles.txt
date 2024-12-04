@@ -1,0 +1,53 @@
+# SmokeJourney Project Files
+
+## Source Files
+- SmokejourneyApp.swift - Main app entry point
+- Views/
+  - AddCigarView.swift - Add new cigar form
+  - EditCigarView.swift - Edit existing cigar
+  - CigarDetailView.swift - Cigar details display
+  - AddHumidorView.swift - Add new humidor form
+  - EditHumidorView.swift - Edit existing humidor
+  - Reviews/
+    - AddReviewView.swift - Add new cigar review
+    - EditReviewView.swift - Edit existing review
+  - Settings/
+    - AboutView.swift - App information and legal
+
+## Documentation
+- appFeatures.md - Feature list and specifications
+- NavigationFlow.md - App navigation structure
+- Roadmap.md - Development roadmap and progress
+- brands.md - Comprehensive cigar brands directory
+
+## Configuration
+- Info.plist - App permissions and capabilities
+- Smokejourney.entitlements - App entitlements and permissions
+- project.pbxproj - Xcode project configuration
+- project.xcworkspace/contents.xcworkspacedata - Workspace settings
+- xcuserdata/
+  - jason.xcuserdatad/xcschemes/xcschememanagement.plist
+  - jasonblocker.xcuserdatad/xcschemes/xcschememanagement.plist
+
+## Assets
+- Assets.xcassets/
+  - AccentColor.colorset/Contents.json
+  - AppIcon.appiconset/Contents.json
+- Preview Content/
+  - Preview Assets.xcassets/Contents.json
+
+## Notes
+- Project uses SwiftUI and SwiftData
+- Implements CloudKit for data synchronization
+- Includes background task handling
+- Features comprehensive cigar and humidor management
+- Includes environmental monitoring capabilities
+
+## Status
+- Active development
+- Core features implemented
+- Environmental monitoring partially complete
+- Social features pending
+
+## Last Updated
+[Current Date] 

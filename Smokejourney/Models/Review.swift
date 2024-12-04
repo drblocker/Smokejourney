@@ -9,7 +9,7 @@ final class Review {
     var ageAtSmoking: TimeInterval?
     var isPrivate: Bool?
     var notes: String?
-    var photos: [Data]?
+    var photosData: Data?
     var environment: String?
     var pairings: String?
     
@@ -62,6 +62,33 @@ final class Review {
         guard !validRatings.isEmpty else { return 0 }
         return validRatings.reduce(0, +) / Double(validRatings.count)
     }
+    
+    var photos: [Data]? {
+        get {
+            guard let data = photosData else { return nil }
+            do {
+                // Use secure coding for better security and future compatibility
+                let decoder = JSONDecoder()
+                return try decoder.decode([Data].self, from: data)
+            } catch {
+                print("Error decoding photos: \(error)")
+                return nil
+            }
+        }
+        set {
+            do {
+                if let newValue = newValue {
+                    let encoder = JSONEncoder()
+                    photosData = try encoder.encode(newValue)
+                } else {
+                    photosData = nil
+                }
+            } catch {
+                print("Error encoding photos: \(error)")
+                photosData = nil
+            }
+        }
+    }
 }
 
 // Detailed Rating Structures
@@ -112,14 +139,40 @@ struct DrawRating: Codable {
 }
 
 struct FlavorRating: Codable {
-    var complexity: Int // 1-5
-    var flavorTransitions: Int // 1-5
-    var flavorIntensity: Int // 1-5
-    var tasteNotes: [String]
+    var complexity: Int
+    var flavorTransitions: Int
+    var flavorIntensity: Int
+    var tasteNotesString: String?
     var notes: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case complexity
+        case flavorTransitions
+        case flavorIntensity
+        case tasteNotesString
+        case notes
+    }
     
     var score: Double {
         Double(complexity + flavorTransitions + flavorIntensity) / 3.0
+    }
+    
+    // Computed property to handle the array conversion
+    var tasteNotes: [String] {
+        get {
+            tasteNotesString?.components(separatedBy: ",").filter { !$0.isEmpty } ?? []
+        }
+        set {
+            tasteNotesString = newValue.joined(separator: ",")
+        }
+    }
+    
+    init(complexity: Int, flavorTransitions: Int, flavorIntensity: Int, tasteNotes: [String], notes: String? = nil) {
+        self.complexity = complexity
+        self.flavorTransitions = flavorTransitions
+        self.flavorIntensity = flavorIntensity
+        self.tasteNotesString = tasteNotes.joined(separator: ",")
+        self.notes = notes
     }
 }
 

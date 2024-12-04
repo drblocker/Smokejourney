@@ -16,7 +16,7 @@ struct CigarBrand: Identifiable {
 class CigarBrands {
     static let shared = CigarBrands()
     
-    let brands: [CigarBrand] = [
+    private let allBrands: [CigarBrand] = [
         CigarBrand(
             name: "ACID",
             lines: [
@@ -938,15 +938,971 @@ class CigarBrands {
             ],
             description: "Premium tobacco grower and cigar manufacturer",
             country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Punch",
+            lines: [
+                CigarBrandLine(name: "Champion"),
+                CigarBrandLine(name: "Clasico"),
+                CigarBrandLine(name: "Deluxe"),
+                CigarBrandLine(name: "Gran Puro"),
+                CigarBrandLine(name: "Rare Corojo")
+            ],
+            description: "Full-bodied Honduran cigars with rich flavor profiles",
+            country: "Honduras"
+        ),
+        CigarBrand(
+            name: "Rocky Patel",
+            lines: [
+                CigarBrandLine(name: "Decade"),
+                CigarBrandLine(name: "Edge"),
+                CigarBrandLine(name: "Fifteenth Anniversary"),
+                CigarBrandLine(name: "Royale"),
+                CigarBrandLine(name: "Sun Grown"),
+                CigarBrandLine(name: "Vintage Series")
+            ],
+            description: "Premium cigars known for consistency and innovation",
+            country: "Nicaragua/Honduras"
+        ),
+        CigarBrand(
+            name: "Romeo y Julieta",
+            lines: [
+                CigarBrandLine(name: "1875"),
+                CigarBrandLine(name: "Capulet"),
+                CigarBrandLine(name: "Montague"),
+                CigarBrandLine(name: "Reserva Real"),
+                CigarBrandLine(name: "Vintage")
+            ],
+            description: "Classic Cuban heritage brand with medium-bodied profiles",
+            country: "Dominican Republic"
+        ),
+        CigarBrand(
+            name: "San Cristobal",
+            lines: [
+                CigarBrandLine(name: "Elegancia"),
+                CigarBrandLine(name: "Ovation"),
+                CigarBrandLine(name: "Quintessence"),
+                CigarBrandLine(name: "Revelation")
+            ],
+            description: "Nicaraguan puros crafted by Jose 'Pepin' Garcia",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Tatuaje",
+            lines: [
+                CigarBrandLine(name: "Black Label"),
+                CigarBrandLine(name: "Havana VI"),
+                CigarBrandLine(name: "Miami"),
+                CigarBrandLine(name: "Monster Series"),
+                CigarBrandLine(name: "Seleccion de Cazador")
+            ],
+            description: "Boutique brand known for Cuban-style cigars",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Undercrown",
+            lines: [
+                CigarBrandLine(name: "Maduro"),
+                CigarBrandLine(name: "Shade"),
+                CigarBrandLine(name: "Sun Grown"),
+                CigarBrandLine(name: "Flying Pig"),
+                CigarBrandLine(name: "Corona ¡Viva!")
+            ],
+            description: "Drew Estate's premium line created by their torcedores",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Warped",
+            lines: [
+                CigarBrandLine(name: "Corto"),
+                CigarBrandLine(name: "El Oso"),
+                CigarBrandLine(name: "Flor del Valle"),
+                CigarBrandLine(name: "Guardian of the Farm"),
+                CigarBrandLine(name: "La Colmena")
+            ],
+            description: "Modern boutique brand with traditional Cuban influence",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Zino",
+            lines: [
+                CigarBrandLine(name: "Classic"),
+                CigarBrandLine(name: "Platinum"),
+                CigarBrandLine(name: "Z-Class")
+            ],
+            description: "Luxury brand from Davidoff, known for refined blends",
+            country: "Dominican Republic"
+        ),
+        CigarBrand(
+            name: "Viaje",
+            lines: [
+                CigarBrandLine(name: "Birthday Blend"),
+                CigarBrandLine(name: "Black and White"),
+                CigarBrandLine(name: "Exclusivo"),
+                CigarBrandLine(name: "Farmhand Andre"),
+                CigarBrandLine(name: "Honey & Hand Grenades"),
+                CigarBrandLine(name: "Skull and Bones")
+            ],
+            description: "Small batch boutique brand known for limited releases",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "RoMa Craft",
+            lines: [
+                CigarBrandLine(name: "Aquitaine"),
+                CigarBrandLine(name: "CroMagnon"),
+                CigarBrandLine(name: "Intemperance"),
+                CigarBrandLine(name: "Neanderthal"),
+                CigarBrandLine(name: "Wunder|Lust")
+            ],
+            description: "Boutique manufacturer known for full-bodied blends",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Illusione",
+            lines: [
+                CigarBrandLine(name: "Epernay"),
+                CigarBrandLine(name: "Fume d'Amour"),
+                CigarBrandLine(name: "Haut 10"),
+                CigarBrandLine(name: "MJ12"),
+                CigarBrandLine(name: "Rothchildes"),
+                CigarBrandLine(name: "~eccj~")
+            ],
+            description: "Boutique brand focused on traditional Cuban methods",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "HVC Cigars",
+            lines: [
+                CigarBrandLine(name: "500 Years Anniversary"),
+                CigarBrandLine(name: "Black Friday"),
+                CigarBrandLine(name: "First Selection"),
+                CigarBrandLine(name: "Hot Cake"),
+                CigarBrandLine(name: "Pan Caliente")
+            ],
+            description: "Cuban-heritage boutique brand",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Aganorsa Leaf",
+            lines: [
+                CigarBrandLine(name: "Guardian of the Farm"),
+                CigarBrandLine(name: "JFR"),
+                CigarBrandLine(name: "Miami"),
+                CigarBrandLine(name: "Signature Selection"),
+                CigarBrandLine(name: "Supreme Leaf")
+            ],
+            description: "Premium Nicaraguan tobacco producer and manufacturer",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Protocol",
+            lines: [
+                CigarBrandLine(name: "Blue"),
+                CigarBrandLine(name: "Eliot Ness"),
+                CigarBrandLine(name: "Gold"),
+                CigarBrandLine(name: "Sir Robert Peel"),
+                CigarBrandLine(name: "Themis")
+            ],
+            description: "Law enforcement themed boutique brand",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Serino",
+            lines: [
+                CigarBrandLine(name: "Royale Connecticut"),
+                CigarBrandLine(name: "Royale Maduro"),
+                CigarBrandLine(name: "Taino"),
+                CigarBrandLine(name: "Wayfarer"),
+                CigarBrandLine(name: "XX")
+            ],
+            description: "Family-owned boutique brand",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Southern Draw",
+            lines: [
+                CigarBrandLine(name: "300 Hands"),
+                CigarBrandLine(name: "Cedrus"),
+                CigarBrandLine(name: "Firethorn"),
+                CigarBrandLine(name: "Jacobs Ladder"),
+                CigarBrandLine(name: "Kudzu"),
+                CigarBrandLine(name: "Rose of Sharon")
+            ],
+            description: "Veteran-owned boutique brand",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Herrera Esteli",
+            lines: [
+                CigarBrandLine(name: "Brazilian Maduro"),
+                CigarBrandLine(name: "Connecticut Broadleaf"),
+                CigarBrandLine(name: "Habano"),
+                CigarBrandLine(name: "Miami"),
+                CigarBrandLine(name: "Norteno")
+            ],
+            description: "Drew Estate's premium traditional line by Willy Herrera",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Leaf by Oscar",
+            lines: [
+                CigarBrandLine(name: "Connecticut"),
+                CigarBrandLine(name: "Corojo"),
+                CigarBrandLine(name: "Maduro"),
+                CigarBrandLine(name: "Sumatra"),
+                CigarBrandLine(name: "Island Jim")
+            ],
+            description: "Known for unique tobacco leaf wrapper packaging",
+            country: "Honduras"
+        ),
+        CigarBrand(
+            name: "Casa Fernandez",
+            lines: [
+                CigarBrandLine(name: "Aniversario"),
+                CigarBrandLine(name: "Miami"),
+                CigarBrandLine(name: "New Cuba"),
+                CigarBrandLine(name: "Reserva"),
+                CigarBrandLine(name: "Signature Series")
+            ],
+            description: "Premium Nicaraguan puros using Aganorsa tobacco",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Quesada",
+            lines: [
+                CigarBrandLine(name: "40th Anniversary"),
+                CigarBrandLine(name: "Casa Magna"),
+                CigarBrandLine(name: "Espana"),
+                CigarBrandLine(name: "Oktoberfest"),
+                CigarBrandLine(name: "Reserva Privada")
+            ],
+            description: "Family-owned Dominican manufacturer since 1974",
+            country: "Dominican Republic"
+        ),
+        CigarBrand(
+            name: "Powstanie",
+            lines: [
+                CigarBrandLine(name: "Broadleaf"),
+                CigarBrandLine(name: "Habano"),
+                CigarBrandLine(name: "SBC16"),
+                CigarBrandLine(name: "Wojtek")
+            ],
+            description: "Boutique brand with Polish heritage",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Mbombay",
+            lines: [
+                CigarBrandLine(name: "Classic"),
+                CigarBrandLine(name: "Corojo Oscuro"),
+                CigarBrandLine(name: "Gaaja"),
+                CigarBrandLine(name: "KeSara"),
+                CigarBrandLine(name: "Vintage Reserve Habano")
+            ],
+            description: "Indian-inspired boutique brand",
+            country: "Costa Rica"
+        ),
+        CigarBrand(
+            name: "Curivari",
+            lines: [
+                CigarBrandLine(name: "Achilles"),
+                CigarBrandLine(name: "Buenaventura"),
+                CigarBrandLine(name: "El Gran Rey"),
+                CigarBrandLine(name: "Gloria de Leon"),
+                CigarBrandLine(name: "Seleccion Privada")
+            ],
+            description: "Traditional Cuban-style boutique brand",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Dissident",
+            lines: [
+                CigarBrandLine(name: "Bloc"),
+                CigarBrandLine(name: "Home"),
+                CigarBrandLine(name: "Rant"),
+                CigarBrandLine(name: "Soapbox"),
+                CigarBrandLine(name: "Tirade")
+            ],
+            description: "Modern boutique brand with edgy marketing",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Ventura Cigar Co.",
+            lines: [
+                CigarBrandLine(name: "Archetype"),
+                CigarBrandLine(name: "Case Study"),
+                CigarBrandLine(name: "Project 805"),
+                CigarBrandLine(name: "PSyKo Seven"),
+                CigarBrandLine(name: "Slaughterhouse")
+            ],
+            description: "Innovative brand with unique concepts",
+            country: "Dominican Republic"
+        ),
+        CigarBrand(
+            name: "Gurkha",
+            lines: [
+                CigarBrandLine(name: "Beauty"),
+                CigarBrandLine(name: "Cellar Reserve"),
+                CigarBrandLine(name: "Ghost"),
+                CigarBrandLine(name: "Grand Reserve"),
+                CigarBrandLine(name: "Heritage"),
+                CigarBrandLine(name: "Master Select"),
+                CigarBrandLine(name: "Royal Challenge")
+            ],
+            description: "Known for luxury packaging and marketing",
+            country: "Dominican Republic"
+        ),
+        CigarBrand(
+            name: "Nat Sherman",
+            lines: [
+                CigarBrandLine(name: "Host"),
+                CigarBrandLine(name: "Metropolitan"),
+                CigarBrandLine(name: "Sterling"),
+                CigarBrandLine(name: "Timeless"),
+                CigarBrandLine(name: "Epoca")
+            ],
+            description: "Historic New York-based premium brand",
+            country: "Dominican Republic"
+        ),
+        CigarBrand(
+            name: "Crux",
+            lines: [
+                CigarBrandLine(name: "Bull & Bear"),
+                CigarBrandLine(name: "Classic"),
+                CigarBrandLine(name: "Du Connoisseur"),
+                CigarBrandLine(name: "Epicure"),
+                CigarBrandLine(name: "Guild")
+            ],
+            description: "Boutique brand known for unique vitolas",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Crowned Heads",
+            lines: [
+                CigarBrandLine(name: "Four Kicks"),
+                CigarBrandLine(name: "Headley Grange"),
+                CigarBrandLine(name: "Jericho Hill"),
+                CigarBrandLine(name: "La Coalicion"),
+                CigarBrandLine(name: "Las Calaveras"),
+                CigarBrandLine(name: "Le Careme"),
+                CigarBrandLine(name: "Mil Dias")
+            ],
+            description: "Nashville-based boutique brand",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "La Barba",
+            lines: [
+                CigarBrandLine(name: "One & Only"),
+                CigarBrandLine(name: "Purple"),
+                CigarBrandLine(name: "Red"),
+                CigarBrandLine(name: "Ricochet"),
+                CigarBrandLine(name: "One & Only")
+            ],
+            description: "Boutique brand with artistic presentation",
+            country: "Dominican Republic"
+        ),
+        CigarBrand(
+            name: "Providencia",
+            lines: [
+                CigarBrandLine(name: "Trinitas"),
+                CigarBrandLine(name: "El Santo"),
+                CigarBrandLine(name: "La Misión"),
+                CigarBrandLine(name: "Hostage"),
+                CigarBrandLine(name: "WunderLust")
+            ],
+            description: "Small batch boutique brand",
+            country: "Honduras"
+        ),
+        CigarBrand(
+            name: "Cavalier Genève",
+            lines: [
+                CigarBrandLine(name: "Black Series"),
+                CigarBrandLine(name: "Black Series II"),
+                CigarBrandLine(name: "White Series"),
+                CigarBrandLine(name: "Limited Edition"),
+                CigarBrandLine(name: "Small Batch")
+            ],
+            description: "Swiss-owned boutique brand with gold diamond",
+            country: "Honduras"
+        ),
+        CigarBrand(
+            name: "Dapper",
+            lines: [
+                CigarBrandLine(name: "Cubo"),
+                CigarBrandLine(name: "El Borracho"),
+                CigarBrandLine(name: "La Madrina"),
+                CigarBrandLine(name: "Siempre Rosado"),
+                CigarBrandLine(name: "El Borracho Maduro")
+            ],
+            description: "Boutique brand with elegant presentation",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Aladino",
+            lines: [
+                CigarBrandLine(name: "Classic"),
+                CigarBrandLine(name: "Corojo"),
+                CigarBrandLine(name: "Maduro"),
+                CigarBrandLine(name: "Connecticut"),
+                CigarBrandLine(name: "Cameroon")
+            ],
+            description: "JRE Tobacco's premium Honduran brand",
+            country: "Honduras"
+        ),
+        CigarBrand(
+            name: "Padrón Family Reserve",
+            lines: [
+                CigarBrandLine(name: "No. 44"),
+                CigarBrandLine(name: "No. 45"),
+                CigarBrandLine(name: "No. 46"),
+                CigarBrandLine(name: "No. 50"),
+                CigarBrandLine(name: "No. 85")
+            ],
+            description: "Ultra-premium line from Padrón",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Liga Privada",
+            lines: [
+                CigarBrandLine(name: "No. 9"),
+                CigarBrandLine(name: "T52"),
+                CigarBrandLine(name: "Unico Serie"),
+                CigarBrandLine(name: "Year of the Rat"),
+                CigarBrandLine(name: "Feral Flying Pig")
+            ],
+            description: "Drew Estate's ultra-premium line",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Fuente Fuente OpusX",
+            lines: [
+                CigarBrandLine(name: "Angel's Share"),
+                CigarBrandLine(name: "Destino al Siglo"),
+                CigarBrandLine(name: "Lost City"),
+                CigarBrandLine(name: "Rare Black"),
+                CigarBrandLine(name: "20 Years Celebration")
+            ],
+            description: "Arturo Fuente's legendary ultra-premium line",
+            country: "Dominican Republic"
+        ),
+        CigarBrand(
+            name: "Ashton ESG",
+            lines: [
+                CigarBrandLine(name: "20 Year Salute"),
+                CigarBrandLine(name: "21 Year Salute"),
+                CigarBrandLine(name: "22 Year Salute"),
+                CigarBrandLine(name: "23 Year Salute"),
+                CigarBrandLine(name: "24 Year Salute")
+            ],
+            description: "Estate Sun Grown ultra-premium line",
+            country: "Dominican Republic"
+        ),
+        CigarBrand(
+            name: "Davidoff Limited Editions",
+            lines: [
+                CigarBrandLine(name: "Year of the Dragon"),
+                CigarBrandLine(name: "Oro Blanco"),
+                CigarBrandLine(name: "Royal Release"),
+                CigarBrandLine(name: "Chef's Edition"),
+                CigarBrandLine(name: "Special 53")
+            ],
+            description: "Limited production ultra-premium releases",
+            country: "Dominican Republic"
+        ),
+        CigarBrand(
+            name: "Plasencia Alma",
+            lines: [
+                CigarBrandLine(name: "Alma Fuerte"),
+                CigarBrandLine(name: "Alma del Campo"),
+                CigarBrandLine(name: "Alma del Fuego"),
+                CigarBrandLine(name: "Alma del Rio"),
+                CigarBrandLine(name: "Sixto")
+            ],
+            description: "Premium line from master tobacco growers",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Cohiba Dominican",
+            lines: [
+                CigarBrandLine(name: "Black"),
+                CigarBrandLine(name: "Macassar"),
+                CigarBrandLine(name: "Nicaragua"),
+                CigarBrandLine(name: "Royale"),
+                CigarBrandLine(name: "Connecticut")
+            ],
+            description: "Dominican version of the legendary Cuban brand",
+            country: "Dominican Republic"
+        ),
+        CigarBrand(
+            name: "Dunbarton Sin Compromiso",
+            lines: [
+                CigarBrandLine(name: "No. 2"),
+                CigarBrandLine(name: "No. 5"),
+                CigarBrandLine(name: "Seleccion"),
+                CigarBrandLine(name: "El Elegante"),
+                CigarBrandLine(name: "Paladin de Saka")
+            ],
+            description: "Steve Saka's ultra-premium line",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Foundation El Güegüense",
+            lines: [
+                CigarBrandLine(name: "The Wise Man"),
+                CigarBrandLine(name: "The Wise Man Maduro"),
+                CigarBrandLine(name: "Corona Gorda"),
+                CigarBrandLine(name: "Robusto"),
+                CigarBrandLine(name: "Churchill")
+            ],
+            description: "Nicholas Melillo's Nicaraguan puro",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Hoyo de Monterrey",
+            lines: [
+                CigarBrandLine(name: "Excalibur"),
+                CigarBrandLine(name: "Dark Sumatra"),
+                CigarBrandLine(name: "La Amistad"),
+                CigarBrandLine(name: "Epicure"),
+                CigarBrandLine(name: "Governor")
+            ],
+            description: "Historic Cuban heritage brand",
+            country: "Honduras"
+        ),
+        CigarBrand(
+            name: "H. Upmann",
+            lines: [
+                CigarBrandLine(name: "1844 Reserve"),
+                CigarBrandLine(name: "The Banker"),
+                CigarBrandLine(name: "Nicaragua by AJ Fernandez"),
+                CigarBrandLine(name: "Vintage Cameroon"),
+                CigarBrandLine(name: "Hermann's Batch")
+            ],
+            description: "Classic brand with German banking heritage",
+            country: "Dominican Republic"
+        ),
+        CigarBrand(
+            name: "Saint Luis Rey",
+            lines: [
+                CigarBrandLine(name: "Natural Broadleaf"),
+                CigarBrandLine(name: "Serie G"),
+                CigarBrandLine(name: "Carenas"),
+                CigarBrandLine(name: "Gen2"),
+                CigarBrandLine(name: "Reserva Especial")
+            ],
+            description: "Traditional Cuban heritage brand",
+            country: "Honduras"
+        ),
+        CigarBrand(
+            name: "Aging Room",
+            lines: [
+                CigarBrandLine(name: "Quattro Nicaragua"),
+                CigarBrandLine(name: "Bin No. 1"),
+                CigarBrandLine(name: "Pura Cepa"),
+                CigarBrandLine(name: "Solera"),
+                CigarBrandLine(name: "Core")
+            ],
+            description: "Boutique brand by Rafael Nodal",
+            country: "Dominican Republic"
+        ),
+        CigarBrand(
+            name: "Fonseca",
+            lines: [
+                CigarBrandLine(name: "Classic"),
+                CigarBrandLine(name: "Nicaragua"),
+                CigarBrandLine(name: "Cubano Limitado"),
+                CigarBrandLine(name: "Vintage"),
+                CigarBrandLine(name: "Serie F")
+            ],
+            description: "Traditional Cuban heritage brand",
+            country: "Dominican Republic"
+        ),
+        CigarBrand(
+            name: "Diamond Crown",
+            lines: [
+                CigarBrandLine(name: "Classic"),
+                CigarBrandLine(name: "Julius Caeser"),
+                CigarBrandLine(name: "Maximus"),
+                CigarBrandLine(name: "Black Diamond"),
+                CigarBrandLine(name: "MAXIMUS No. 9")
+            ],
+            description: "Ultra-premium line from J.C. Newman",
+            country: "Dominican Republic"
+        ),
+        CigarBrand(
+            name: "La Galera",
+            lines: [
+                CigarBrandLine(name: "Connecticut"),
+                CigarBrandLine(name: "Habano"),
+                CigarBrandLine(name: "Maduro"),
+                CigarBrandLine(name: "1936 Box Pressed"),
+                CigarBrandLine(name: "Anemoi")
+            ],
+            description: "Brand from Tabacalera Palma",
+            country: "Dominican Republic"
+        ),
+        CigarBrand(
+            name: "Villiger",
+            lines: [
+                CigarBrandLine(name: "La Flor de Ynclan"),
+                CigarBrandLine(name: "San'Doro"),
+                CigarBrandLine(name: "La Vencedora"),
+                CigarBrandLine(name: "Cuellar Connecticut"),
+                CigarBrandLine(name: "La Libertad")
+            ],
+            description: "Swiss company with long tobacco history",
+            country: "Dominican Republic"
+        ),
+        CigarBrand(
+            name: "La Gianna Havana",
+            lines: [
+                CigarBrandLine(name: "Maduro"),
+                CigarBrandLine(name: "Natural"),
+                CigarBrandLine(name: "Connecticut"),
+                CigarBrandLine(name: "Claro"),
+                CigarBrandLine(name: "Reserva Especial")
+            ],
+            description: "Boutique brand with Italian influence",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Joya de Nicaragua Antaño",
+            lines: [
+                CigarBrandLine(name: "1970"),
+                CigarBrandLine(name: "Dark Corojo"),
+                CigarBrandLine(name: "Gran Reserva"),
+                CigarBrandLine(name: "Connecticut"),
+                CigarBrandLine(name: "CT")
+            ],
+            description: "Nicaragua's oldest premium cigar manufacturer",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Padrón Dámaso",
+            lines: [
+                CigarBrandLine(name: "No. 8"),
+                CigarBrandLine(name: "No. 12"),
+                CigarBrandLine(name: "No. 15"),
+                CigarBrandLine(name: "No. 17"),
+                CigarBrandLine(name: "No. 32")
+            ],
+            description: "Connecticut-wrapped line from Padrón",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Tatuaje Reserva",
+            lines: [
+                CigarBrandLine(name: "Broadleaf Collection"),
+                CigarBrandLine(name: "K222"),
+                CigarBrandLine(name: "SW"),
+                CigarBrandLine(name: "Cojonu"),
+                CigarBrandLine(name: "Miami")
+            ],
+            description: "Pete Johnson's premium line",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "L'Atelier",
+            lines: [
+                CigarBrandLine(name: "LAT"),
+                CigarBrandLine(name: "Identité"),
+                CigarBrandLine(name: "La Mission"),
+                CigarBrandLine(name: "Selection Spéciale"),
+                CigarBrandLine(name: "Côte d'Or")
+            ],
+            description: "Pete Johnson's boutique brand",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Arturo Fuente Casa Cuba",
+            lines: [
+                CigarBrandLine(name: "Divine Inspiration"),
+                CigarBrandLine(name: "Doble Cuatro"),
+                CigarBrandLine(name: "Doble Cinco"),
+                CigarBrandLine(name: "Doble Seis"),
+                CigarBrandLine(name: "Pre-Release")
+            ],
+            description: "Don Carlos Fuente Sr.'s final blend",
+            country: "Dominican Republic"
+        ),
+        CigarBrand(
+            name: "Davidoff Winston Churchill",
+            lines: [
+                CigarBrandLine(name: "The Original"),
+                CigarBrandLine(name: "The Late Hour"),
+                CigarBrandLine(name: "The Statesman"),
+                CigarBrandLine(name: "Limited Edition"),
+                CigarBrandLine(name: "The Traveller")
+            ],
+            description: "Premium line honoring Sir Winston Churchill",
+            country: "Dominican Republic"
+        ),
+        CigarBrand(
+            name: "AJ Fernandez New World",
+            lines: [
+                CigarBrandLine(name: "Connecticut"),
+                CigarBrandLine(name: "Oscuro"),
+                CigarBrandLine(name: "Puro Especial"),
+                CigarBrandLine(name: "Cameroon"),
+                CigarBrandLine(name: "Dorado")
+            ],
+            description: "Value-driven premium line",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Oliva Master Blends",
+            lines: [
+                CigarBrandLine(name: "1"),
+                CigarBrandLine(name: "2"),
+                CigarBrandLine(name: "3"),
+                CigarBrandLine(name: "Limited Edition"),
+                CigarBrandLine(name: "Double Robusto")
+            ],
+            description: "Limited production premium line",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Montecristo Espada",
+            lines: [
+                CigarBrandLine(name: "Guard"),
+                CigarBrandLine(name: "Ricasso"),
+                CigarBrandLine(name: "Quillon"),
+                CigarBrandLine(name: "Oscuro"),
+                CigarBrandLine(name: "Limited Edition")
+            ],
+            description: "Nicaraguan puro from Montecristo",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "E.P. Carrillo",
+            lines: [
+                CigarBrandLine(name: "Encore"),
+                CigarBrandLine(name: "La Historia"),
+                CigarBrandLine(name: "Pledge"),
+                CigarBrandLine(name: "Elite"),
+                CigarBrandLine(name: "Cardinal Impact")
+            ],
+            description: "Award-winning brand by Ernesto Perez-Carrillo",
+            country: "Dominican Republic"
+        ),
+        CigarBrand(
+            name: "Diesel",
+            lines: [
+                CigarBrandLine(name: "Whiskey Row"),
+                CigarBrandLine(name: "Grind"),
+                CigarBrandLine(name: "Estelí Puro"),
+                CigarBrandLine(name: "Hair of the Dog"),
+                CigarBrandLine(name: "Delirium")
+            ],
+            description: "Full-bodied AJ Fernandez brand",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Kristoff",
+            lines: [
+                CigarBrandLine(name: "Pistoff Kristoff"),
+                CigarBrandLine(name: "San Andres"),
+                CigarBrandLine(name: "Shade Grown"),
+                CigarBrandLine(name: "GC Signature Series"),
+                CigarBrandLine(name: "Vengeance")
+            ],
+            description: "Boutique brand known for box-pressed cigars",
+            country: "Dominican Republic"
+        ),
+        CigarBrand(
+            name: "La Palina Goldie",
+            lines: [
+                CigarBrandLine(name: "Laguito No. 2"),
+                CigarBrandLine(name: "Laguito No. 5"),
+                CigarBrandLine(name: "Toro"),
+                CigarBrandLine(name: "Robusto Extra"),
+                CigarBrandLine(name: "Dalia")
+            ],
+            description: "Ultra-premium limited production line",
+            country: "Dominican Republic"
+        ),
+        CigarBrand(
+            name: "Fratello",
+            lines: [
+                CigarBrandLine(name: "Classico"),
+                CigarBrandLine(name: "Navetta"),
+                CigarBrandLine(name: "Oro"),
+                CigarBrandLine(name: "Sorella"),
+                CigarBrandLine(name: "Arlequin")
+            ],
+            description: "NASA engineer turned cigar maker",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Sobremesa",
+            lines: [
+                CigarBrandLine(name: "Brulee"),
+                CigarBrandLine(name: "Cervantes Fino"),
+                CigarBrandLine(name: "Short Churchill"),
+                CigarBrandLine(name: "Double Corona"),
+                CigarBrandLine(name: "El Americano")
+            ],
+            description: "Steve Saka's tribute to post-dinner cigars",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Aganorsa Supreme Leaf",
+            lines: [
+                CigarBrandLine(name: "Robusto"),
+                CigarBrandLine(name: "Toro"),
+                CigarBrandLine(name: "Corona Gorda"),
+                CigarBrandLine(name: "Torpedo"),
+                CigarBrandLine(name: "Limited Edition")
+            ],
+            description: "Premium Nicaraguan puro",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Davidoff Nicaragua",
+            lines: [
+                CigarBrandLine(name: "Box Pressed"),
+                CigarBrandLine(name: "Diadema"),
+                CigarBrandLine(name: "Primeros"),
+                CigarBrandLine(name: "Short Corona"),
+                CigarBrandLine(name: "Toro")
+            ],
+            description: "Davidoff's Nicaraguan puro line",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Balmoral",
+            lines: [
+                CigarBrandLine(name: "Anejo XO"),
+                CigarBrandLine(name: "Serie Signaturas"),
+                CigarBrandLine(name: "Gran Royals"),
+                CigarBrandLine(name: "Vintage"),
+                CigarBrandLine(name: "Private Collection")
+            ],
+            description: "Royal Dutch premium brand",
+            country: "Dominican Republic"
+        ),
+        CigarBrand(
+            name: "Espinosa",
+            lines: [
+                CigarBrandLine(name: "Laranja Reserva"),
+                CigarBrandLine(name: "Crema"),
+                CigarBrandLine(name: "Las 6 Provincias"),
+                CigarBrandLine(name: "601"),
+                CigarBrandLine(name: "Alpha Dawg")
+            ],
+            description: "Erik Espinosa's boutique brand",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Cornelius & Anthony",
+            lines: [
+                CigarBrandLine(name: "Cornelius"),
+                CigarBrandLine(name: "Daddy Mac"),
+                CigarBrandLine(name: "Meridian"),
+                CigarBrandLine(name: "The Gent"),
+                CigarBrandLine(name: "Venganza")
+            ],
+            description: "Virginia tobacco family's premium brand",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Warped Serie K",
+            lines: [
+                CigarBrandLine(name: "K-101"),
+                CigarBrandLine(name: "K-222"),
+                CigarBrandLine(name: "K-666"),
+                CigarBrandLine(name: "Moon Garden"),
+                CigarBrandLine(name: "Chinchalle")
+            ],
+            description: "Kyle Gellis' premium line",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Aladino Cameroon",
+            lines: [
+                CigarBrandLine(name: "Elegante"),
+                CigarBrandLine(name: "Lonsdale"),
+                CigarBrandLine(name: "Robusto"),
+                CigarBrandLine(name: "Toro"),
+                CigarBrandLine(name: "Queens Perfecto")
+            ],
+            description: "JRE's Cameroon-wrapped line",
+            country: "Honduras"
+        ),
+        CigarBrand(
+            name: "Dunbarton Mi Querida",
+            lines: [
+                CigarBrandLine(name: "Triqui Traca"),
+                CigarBrandLine(name: "Fino Largo"),
+                CigarBrandLine(name: "Gordita"),
+                CigarBrandLine(name: "Mas Sucia"),
+                CigarBrandLine(name: "Ancho Corto")
+            ],
+            description: "Steve Saka's Connecticut Broadleaf line",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Foundation Charter Oak",
+            lines: [
+                CigarBrandLine(name: "Connecticut"),
+                CigarBrandLine(name: "Habano"),
+                CigarBrandLine(name: "Maduro"),
+                CigarBrandLine(name: "Grande"),
+                CigarBrandLine(name: "Rothschild")
+            ],
+            description: "Value line from Foundation Cigar Co.",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "HVC San Isidro",
+            lines: [
+                CigarBrandLine(name: "Divinos"),
+                CigarBrandLine(name: "Corona"),
+                CigarBrandLine(name: "Hermoso"),
+                CigarBrandLine(name: "Sublime"),
+                CigarBrandLine(name: "Toro")
+            ],
+            description: "Reinier Lorenzo's tribute to Cuban roots",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Plasencia Year of the Tiger",
+            lines: [
+                CigarBrandLine(name: "Toro"),
+                CigarBrandLine(name: "Robusto"),
+                CigarBrandLine(name: "Churchill"),
+                CigarBrandLine(name: "Gordo"),
+                CigarBrandLine(name: "Limited Edition")
+            ],
+            description: "Limited edition Nicaraguan puro",
+            country: "Nicaragua"
+        ),
+        CigarBrand(
+            name: "Tatuaje T110",
+            lines: [
+                CigarBrandLine(name: "Original"),
+                CigarBrandLine(name: "Capa Especial"),
+                CigarBrandLine(name: "Reserva"),
+                CigarBrandLine(name: "Limited"),
+                CigarBrandLine(name: "Sumatra")
+            ],
+            description: "Pete Johnson's powerhouse blend",
+            country: "Nicaragua"
         )
-        // Continue with more brands...
     ]
+    
+    // Public property that returns sorted brands
+    var brands: [CigarBrand] {
+        allBrands.sorted { $0.name < $1.name }
+    }
     
     func searchBrands(_ query: String) -> [CigarBrand] {
         if query.isEmpty {
-            return brands
+            return brands // This will now return sorted brands
         }
-        return brands.filter { brand in
+        return brands.filter { brand in // This will filter the sorted list
             brand.name.localizedCaseInsensitiveContains(query) ||
             brand.country.localizedCaseInsensitiveContains(query) ||
             brand.lines.contains { line in
@@ -956,7 +1912,7 @@ class CigarBrands {
     }
     
     func getBrand(_ name: String) -> CigarBrand? {
-        brands.first { brand in
+        brands.first { brand in // This will search the sorted list
             brand.name.localizedCaseInsensitiveContains(name)
         }
     }

@@ -39,8 +39,8 @@ class AuthenticationManager: NSObject, ObservableObject {
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
         super.init()
+        checkAuthenticationState()
         Task {
-            await checkAuthenticationState()
             await startCredentialStateMonitoring()
         }
     }
@@ -72,9 +72,13 @@ class AuthenticationManager: NSObject, ObservableObject {
         switch state {
         case .revoked:
             error = .credentialRevoked
-            Task { await signOut() }
+            Task {
+                await signOut()
+            }
         case .notFound:
-            Task { await signOut() }
+            Task {
+                await signOut()
+            }
         case .authorized:
             break // All good
         default:
@@ -82,14 +86,16 @@ class AuthenticationManager: NSObject, ObservableObject {
         }
     }
     
-    private func checkAuthenticationState() async {
+    private func checkAuthenticationState() {
         do {
             let descriptor = FetchDescriptor<User>()
             let users = try modelContext.fetch(descriptor)
             if let user = users.first {
                 currentUser = user
                 isAuthenticated = true
-                await startCredentialStateMonitoring()
+                Task {
+                    await startCredentialStateMonitoring()
+                }
             }
         } catch {
             self.error = .signInFailed(error.localizedDescription)
@@ -137,23 +143,20 @@ class AuthenticationManager: NSObject, ObservableObject {
             sortBy: [SortDescriptor(\User.createdAt, order: .reverse)]
         )
         
-        let existingUsers = try await modelContext.fetch(descriptor)
+        let existingUsers = try modelContext.fetch(descriptor)
         
         if let existingUser = existingUsers.first {
-            // Update existing user with any new information
-            await MainActor.run {
-                if let email = credential.email {
-                    existingUser.email = email
-                }
-                if let fullName = credential.fullName {
-                    let displayName = [
-                        fullName.givenName,
-                        fullName.familyName
-                    ].compactMap { $0 }.joined(separator: " ")
-                    existingUser.displayName = displayName.isEmpty ? nil : displayName
-                }
-                existingUser.lastSignInDate = Date()
+            if let email = credential.email {
+                existingUser.email = email
             }
+            if let fullName = credential.fullName {
+                let displayName = [
+                    fullName.givenName,
+                    fullName.familyName
+                ].compactMap { $0 }.joined(separator: " ")
+                existingUser.displayName = displayName.isEmpty ? nil : displayName
+            }
+            existingUser.lastSignInDate = Date()
             return existingUser
         } else {
             // Create new user
@@ -169,9 +172,7 @@ class AuthenticationManager: NSObject, ObservableObject {
                 appleUserIdentifier: credential.user
             )
             
-            await MainActor.run {
-                modelContext.insert(user)
-            }
+            modelContext.insert(user)
             return user
         }
     }
@@ -214,7 +215,7 @@ class AuthenticationManager: NSObject, ObservableObject {
             await signOut()
             
             // Attempt to authenticate with SensorPush
-            let token = try await SensorPushService.shared.authenticate(email: email, password: password)
+            _ = try await SensorPushService.shared.authenticate(email: email, password: password)
             
             // If successful, create new user
             let user = User(email: email)

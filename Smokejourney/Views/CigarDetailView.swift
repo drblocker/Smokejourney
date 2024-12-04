@@ -15,6 +15,7 @@ struct CigarDetailView: View {
     @State private var showDeleteAlert = false
     @State private var showAddReview = false
     @State private var hasActiveSession = false
+    @State private var showGiftSheet = false
     
     private let currencyFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
@@ -34,7 +35,14 @@ struct CigarDetailView: View {
             }
             
             Section("Purchase Information") {
-                LabeledContent("Total Quantity", value: "\(cigar.totalQuantity)")
+                NavigationLink(destination: PurchaseHistoryView(cigar: cigar)) {
+                    VStack(alignment: .leading) {
+                        Text("Purchase History")
+                        Text("\(cigar.totalQuantity) cigars • \(cigar.purchaseHistory.count) transactions")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
                 
                 if cigar.totalCost > 0 {
                     if let formattedTotal = currencyFormatter.string(from: cigar.totalCost as NSDecimalNumber) {
@@ -42,24 +50,6 @@ struct CigarDetailView: View {
                     }
                     if let formattedAvg = currencyFormatter.string(from: cigar.averagePricePerCigar as NSDecimalNumber) {
                         LabeledContent("Average Price per Cigar", value: formattedAvg)
-                    }
-                }
-            }
-            
-            Section("Purchase History") {
-                ForEach(cigar.purchaseHistory.sorted(by: { $0.date > $1.date }), id: \.date) { purchase in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(purchase.date.formatted(date: .abbreviated, time: .shortened))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        HStack {
-                            Text("Quantity: \(purchase.quantity)")
-                            Spacer()
-                            if let formattedPrice = currencyFormatter.string(from: purchase.price as NSDecimalNumber) {
-                                Text(formattedPrice)
-                            }
-                        }
                     }
                 }
             }
@@ -91,6 +81,14 @@ struct CigarDetailView: View {
                 } else {
                     NavigationLink(destination: SmokingSessionView(cigar: cigar)) {
                         Label("Start Smoking Session", systemImage: "flame")
+                    }
+                }
+                
+                if cigar.totalQuantity > 0 {
+                    Button {
+                        showGiftSheet = true
+                    } label: {
+                        Label("Gift Cigar", systemImage: "gift")
                     }
                 }
             }
@@ -141,6 +139,9 @@ struct CigarDetailView: View {
         }
         .sheet(isPresented: $showAddReview) {
             AddReviewView(cigar: cigar, smokingDuration: 0)
+        }
+        .sheet(isPresented: $showGiftSheet) {
+            GiftCigarView(cigar: cigar)
         }
         .onAppear {
             checkForActiveSession()

@@ -43,26 +43,33 @@ final class CloudKitManager {
         
         do {
             let accountStatus = try await container.accountStatus()
-            switch accountStatus {
-            case .available:
-                logger.debug("iCloud account available")
-                return
-            case .noAccount:
-                logger.error("No iCloud account found")
-                throw CloudKitError.iCloudAccountNotFound
-            case .restricted:
-                logger.error("iCloud account restricted")
-                throw CloudKitError.notAuthenticated
-            case .couldNotDetermine:
-                logger.error("Could not determine iCloud account status")
-                throw CloudKitError.networkError
-            @unknown default:
-                logger.error("Unknown iCloud account status")
-                throw CloudKitError.serverError(NSError(domain: "CloudKitManager", code: -2))
-            }
+            try handleAccountStatus(accountStatus)
         } catch {
             logger.error("iCloud verification failed: \(error.localizedDescription)")
             throw CloudKitError.serverError(error)
+        }
+    }
+    
+    private func handleAccountStatus(_ accountStatus: CKAccountStatus) throws {
+        switch accountStatus {
+        case .available:
+            logger.debug("iCloud account available")
+            return
+        case .noAccount:
+            logger.error("No iCloud account found")
+            throw CloudKitError.iCloudAccountNotFound
+        case .restricted:
+            logger.error("iCloud account restricted")
+            throw CloudKitError.notAuthenticated
+        case .couldNotDetermine:
+            logger.error("Could not determine iCloud account status")
+            throw CloudKitError.networkError
+        case .temporarilyUnavailable:
+            logger.error("iCloud account temporarily unavailable")
+            throw CloudKitError.notAuthenticated
+        @unknown default:
+            logger.error("Unknown iCloud account status")
+            throw CloudKitError.serverError(NSError(domain: "CloudKitManager", code: -2))
         }
     }
     

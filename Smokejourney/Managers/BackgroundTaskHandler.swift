@@ -57,7 +57,10 @@ final class BackgroundTaskHandler {
         do {
             let sensors = try await sensorPushService.getSensors()
             for sensor in sensors {
-                try await sensorPushService.getSamples(limit: 1)
+                let samples = try await sensorPushService.getSamples(limit: 1)
+                if let latestSample = samples.first {
+                    await checkEnvironmentalConditions(latestSample)
+                }
                 logger.debug("Successfully fetched data for sensor: \(sensor.id)")
             }
             lastSuccessfulSync = Date()
@@ -117,11 +120,11 @@ final class BackgroundTaskHandler {
                     try await self?.performSensorSync()
                     task.setTaskCompleted(success: true)
                     self?.logger.debug("Background sensor sync completed successfully")
+                    await self?.scheduleBackgroundTask()
                 } catch {
                     self?.logger.error("Background sensor sync failed: \(error.localizedDescription)")
                     task.setTaskCompleted(success: false)
                 }
-                self?.scheduleBackgroundTask()
             }
         }
         

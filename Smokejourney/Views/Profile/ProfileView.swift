@@ -33,7 +33,11 @@ struct ProfileView: View {
                     }
                     
                     Section("Account") {
-                        Button(role: .destructive, action: signOut) {
+                        Button(role: .destructive) {
+                            Task {
+                                await signOut()
+                            }
+                        } label: {
                             Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
                         }
                     }
@@ -43,11 +47,11 @@ struct ProfileView: View {
         }
     }
     
-    private func signOut() {
+    private func signOut() async {
         if let user = users.first {
             modelContext.delete(user)
         }
-        SensorPushService.shared.signOut()
+        await SensorPushService.shared.signOut()
         isAuthenticated = false
     }
 }

@@ -361,15 +361,16 @@ struct AddReviewView: View {
         }
         cigar.reviews?.append(review)
         
-        // Update inventory by creating a negative quantity purchase
+        // Create consumption record
         let consumptionRecord = CigarPurchase(
             quantity: -1,  // Negative quantity to represent consumption
             price: nil,    // No price for consumption
             vendor: nil,
-            url: nil
+            url: nil,
+            type: .smoke   // Explicitly mark as smoke
         )
         consumptionRecord.cigar = cigar
-        consumptionRecord.date = date  // Use the review date
+        consumptionRecord.date = date
         
         if cigar.purchases == nil {
             cigar.purchases = []
