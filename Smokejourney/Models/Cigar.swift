@@ -2,7 +2,7 @@ import SwiftData
 import Foundation
 
 @Model
-final class Cigar {
+final class Cigar: Identifiable {
     var brand: String?
     var name: String?
     var wrapperType: String?

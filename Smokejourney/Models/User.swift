@@ -9,13 +9,11 @@ final class User {
     var createdAt: Date?
     var lastSignInDate: Date?
     var preferences: [String: String]?
-    var appleUserIdentifier: String?
     
     // MARK: - Initialization
-    init(email: String, displayName: String? = nil, appleUserIdentifier: String? = nil) {
+    init(email: String, displayName: String? = nil) {
         self.email = email
         self.displayName = displayName
-        self.appleUserIdentifier = appleUserIdentifier
         self.createdAt = Date()
         self.lastSignInDate = Date()
         self.preferences = [:]

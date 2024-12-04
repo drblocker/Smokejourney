@@ -425,7 +425,12 @@ struct AddCigarView: View {
                         self.selectedSize = size
                         showSizePicker = false
                     }) {
-                        Text(size.name)
+                        VStack(alignment: .leading) {
+                            Text(size.displayName)
+                            Text(size.description)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
                 .searchable(text: $sizeSearchText, prompt: "Search sizes...")
@@ -441,7 +446,12 @@ struct AddCigarView: View {
                         self.selectedWrapper = wrapper
                         showWrapperPicker = false
                     }) {
-                        Text(wrapper.name)
+                        VStack(alignment: .leading) {
+                            Text(wrapper.name)
+                            Text(wrapper.description)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
                 .searchable(text: $wrapperSearchText, prompt: "Search wrappers...")
@@ -457,7 +467,12 @@ struct AddCigarView: View {
                         self.selectedStrength = strength
                         showStrengthPicker = false
                     }) {
-                        Text(strength.name)
+                        VStack(alignment: .leading) {
+                            Text(strength.name)
+                            Text(strength.description)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
                 .searchable(text: $strengthSearchText, prompt: "Search strengths...")

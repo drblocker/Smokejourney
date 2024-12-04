@@ -12,6 +12,9 @@ final class Review {
     var photosData: Data?
     var environment: String?
     var pairings: String?
+    @Attribute(.transformable(by: CutTypeValueTransformer.self))
+    var cutType: CutType?
+    var humidity: Double?
     
     // Ratings (1-5 scale)
     var appearanceRating: AppearanceRating?
@@ -242,5 +245,18 @@ struct OverallRating: Codable {
     
     var score: Double {
         Double(valueForMoney + enjoymentLevel + wouldSmokeAgain + recommendationLevel) / 4.0
+    }
+}
+
+// Add this transformer class
+final class CutTypeTransformer: ValueTransformer {
+    override func transformedValue(_ value: Any?) -> Any? {
+        guard let cutType = value as? CutType else { return nil }
+        return cutType.rawValue
+    }
+    
+    override func reverseTransformedValue(_ value: Any?) -> Any? {
+        guard let string = value as? String else { return nil }
+        return CutType(rawValue: string)
     }
 } 

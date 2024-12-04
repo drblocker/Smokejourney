@@ -1,64 +1,27 @@
 import SwiftUI
 import SwiftData
+import os.log
 
 struct HumidorListView: View {
-    @Environment(\.modelContext) private var modelContext
+    @Environment(\.modelContext) var modelContext
     @Query private var humidors: [Humidor]
-    @StateObject private var syncMonitor: SyncMonitor
-    
-    @State private var searchText = ""
-    @State private var showAddHumidor = false
-    
-    init(modelContext: ModelContext) {
-        _syncMonitor = StateObject(wrappedValue: SyncMonitor(modelContext: modelContext))
-    }
-    
-    var filteredHumidors: [Humidor] {
-        if searchText.isEmpty {
-            return humidors
-        }
-        return humidors.filter { humidor in
-            humidor.effectiveName.localizedCaseInsensitiveContains(searchText) ||
-            (humidor.location?.localizedCaseInsensitiveContains(searchText) ?? false)
-        }
-    }
+    private let logger = Logger(subsystem: "com.smokejourney", category: "HumidorListView")
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
-                ForEach(filteredHumidors) { humidor in
+                ForEach(humidors) { humidor in
                     NavigationLink(destination: HumidorDetailView(humidor: humidor)) {
                         HumidorRowView(humidor: humidor)
                     }
                 }
-                .onDelete(perform: deleteHumidor)
-            }
-            .navigationTitle("Humidors")
-            .searchable(text: $searchText, prompt: "Search humidors...")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showAddHumidor.toggle() }) {
-                        Label("Add Humidor", systemImage: "plus")
-                    }
-                }
-                
-                ToolbarItem(placement: .navigationBarLeading) {
-                    EditButton()
-                }
-                
-                ToolbarItem(placement: .status) {
-                    SyncStatusView(syncMonitor: syncMonitor)
-                }
-            }
-            .sheet(isPresented: $showAddHumidor) {
-                AddHumidorView()
             }
         }
-    }
-    
-    private func deleteHumidor(offsets: IndexSet) {
-        withAnimation {
-            offsets.map { filteredHumidors[$0] }.forEach(modelContext.delete)
+        .onAppear {
+            logger.debug("HumidorListView appeared, humidor count: \(humidors.count)")
+        }
+        .onChange(of: humidors) { oldValue, newValue in
+            logger.debug("Humidors changed: Old count: \(oldValue.count), New count: \(newValue.count)")
         }
     }
 }

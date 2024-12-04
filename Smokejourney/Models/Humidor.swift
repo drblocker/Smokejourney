@@ -1,8 +1,11 @@
 import SwiftData
 import Foundation
+import os.log
 
 @Model
 final class Humidor {
+    private static let logger = Logger(subsystem: "com.smokejourney", category: "Humidor")
+    
     var name: String?
     var capacity: Int?
     var humidorDescription: String?
@@ -49,9 +52,9 @@ final class Humidor {
     }
     
     var totalCigarCount: Int {
-        effectiveCigars.reduce(into: 0) { total, cigar in
+        cigars?.reduce(into: 0) { total, cigar in
             total += cigar.totalQuantity
-        }
+        } ?? 0
     }
     
     var capacityPercentage: Double {

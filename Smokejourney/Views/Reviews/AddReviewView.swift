@@ -102,13 +102,54 @@ struct AddReviewView: View {
         notes: ""
     )
     
+    // Add state for validation
+    @State private var showValidationAlert = false
+    @State private var validationMessage = ""
+    
+    @State private var cutType: CutType = .guillotine
+    @State private var humidity: String = ""  // Using string for input validation
+    
+    // Add computed property for validation
+    private var isValid: Bool {
+        // Basic information validation
+        if environment.isEmpty {
+            validationMessage = "Please enter the smoking environment"
+            return false
+        }
+        
+        // Ratings validation (ensure at least core ratings are provided)
+        if flavorRating.complexity == 0 || 
+           flavorRating.flavorTransitions == 0 || 
+           flavorRating.flavorIntensity == 0 {
+            validationMessage = "Please complete the flavor ratings"
+            return false
+        }
+        
+        if overallRating.enjoymentLevel == 0 ||
+           overallRating.wouldSmokeAgain == 0 {
+            validationMessage = "Please complete the overall ratings"
+            return false
+        }
+        
+        // Add humidity validation
+        if !humidity.isEmpty {
+            guard let humidityValue = Double(humidity),
+                  humidityValue >= 0 && humidityValue <= 99 else {
+                validationMessage = "Please enter a valid humidity (0-99)"
+                return false
+            }
+        }
+        
+        return true
+    }
+    
     init(cigar: Cigar, smokingDuration: TimeInterval) {
         self.cigar = cigar
         self.smokingDuration = smokingDuration
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section("Basic Information") {
                     DatePicker("Date", selection: $date, displayedComponents: [.date, .hourAndMinute])
@@ -116,6 +157,20 @@ struct AddReviewView: View {
                     Section("Smoking Duration") {
                         Text(formatDuration(TimeInterval(smokingDuration)))
                             .foregroundColor(.secondary)
+                    }
+                    
+                    Picker("Cut Type", selection: $cutType) {
+                        ForEach(CutType.allCases, id: \.self) { cut in
+                            Text(cut.rawValue).tag(cut)
+                        }
+                    }
+                    
+                    HStack {
+                        Text("Humidity")
+                        TextField("65", text: $humidity)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                        Text("%")
                     }
                     
                     Toggle("Private Review", isOn: $isPrivate)
@@ -275,10 +330,19 @@ struct AddReviewView: View {
                 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        saveReview()
-                        dismiss()
+                        if isValid {
+                            saveReview()
+                            dismiss()
+                        } else {
+                            showValidationAlert = true
+                        }
                     }
                 }
+            }
+            .alert("Missing Information", isPresented: $showValidationAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(validationMessage)
             }
             .confirmationDialog("Choose Photo Source", isPresented: $showPhotoOptions) {
                 Button("Take Photo") {
@@ -336,7 +400,7 @@ struct AddReviewView: View {
         review.pairings = pairings.isEmpty ? nil : pairings
         review.notes = notes.isEmpty ? nil : notes
         
-        // Set all the ratings...
+        // Set all the ratings
         review.appearanceRating = appearanceRating
         review.aromaRating = aromaRating
         review.constructionRating = constructionRating
@@ -376,6 +440,11 @@ struct AddReviewView: View {
             cigar.purchases = []
         }
         cigar.purchases?.append(consumptionRecord)
+        
+        review.cutType = cutType
+        if let humidityValue = Double(humidity) {
+            review.humidity = humidityValue
+        }
         
         dismiss()
     }

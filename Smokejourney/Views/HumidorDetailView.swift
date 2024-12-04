@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import os.log
 
 struct HumidorDetailView: View {
     @Environment(\.modelContext) private var modelContext
@@ -16,11 +17,12 @@ struct HumidorDetailView: View {
     @State private var showSensorManagement = false
     @State private var showEnvironmentReport = false
     
+    private let logger = Logger(subsystem: "com.smokejourney", category: "HumidorDetailView")
+    
     private var filteredCigars: [Cigar] {
-        guard !searchText.isEmpty else {
+        if searchText.isEmpty {
             return humidor.effectiveCigars
         }
-        
         return humidor.effectiveCigars.filter { cigar in
             let searchTerms = searchText.lowercased()
             let brandMatch = cigar.brand?.lowercased().contains(searchTerms) ?? false
@@ -117,9 +119,7 @@ struct HumidorDetailView: View {
     }
     
     private func deleteCigar(_ cigar: Cigar) {
-        withAnimation {
-            modelContext.delete(cigar)
-        }
+        modelContext.delete(cigar)
     }
     
     private func deleteHumidor() {

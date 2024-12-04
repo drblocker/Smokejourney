@@ -3,65 +3,76 @@ import SwiftData
 import AuthenticationServices
 
 struct LoginView: View {
-    @Binding var isAuthenticated: Bool
     @Environment(\.modelContext) private var modelContext
-    @StateObject private var authManager: AuthenticationManager
+    @Binding var isAuthenticated: Bool
     
-    init(isAuthenticated: Binding<Bool>, modelContext: ModelContext) {
-        _isAuthenticated = isAuthenticated
-        _authManager = StateObject(wrappedValue: AuthenticationManager(modelContext: modelContext))
+    @State private var email = ""
+    @State private var password = ""
+    @State private var showError = false
+    @State private var errorMessage = ""
+    @State private var isLoading = false
+    @State private var showSignUp = false
+    
+    private var isValid: Bool {
+        !email.isEmpty && !password.isEmpty && email.contains("@")
     }
     
     var body: some View {
-        VStack(spacing: 20) {
-            Spacer()
-            
-            // App Logo/Title
-            VStack(spacing: 10) {
-                Image(systemName: "smoke")
-                    .font(.system(size: 60))
-                Text("SmokeJourney")
-                    .font(.title)
-                    .bold()
+        Form {
+            Section {
+                TextField("Email", text: $email)
+                    .textContentType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                
+                SecureField("Password", text: $password)
+                    .textContentType(.password)
             }
             
-            Spacer()
-            
-            // Sign in with Apple button
-            SignInWithAppleButton(.signIn) { request in
-                request.requestedScopes = [.email, .fullName]
-            } onCompletion: { result in
-                Task {
-                    do {
-                        try await authManager.handleSignInWithApple(result)
-                        isAuthenticated = true
-                    } catch {
-                        // Error handling is managed by AuthManager
+            Section {
+                Button(action: signIn) {
+                    if isLoading {
+                        ProgressView()
+                    } else {
+                        Text("Sign In")
                     }
                 }
+                .disabled(!isValid || isLoading)
+                
+                Button("Create Account") {
+                    showSignUp = true
+                }
             }
-            .frame(height: 50)
-            .padding(.horizontal)
-            
-            // Privacy and Terms links
-            HStack {
-                Link("Privacy Policy", destination: URL(string: "https://smokejourney.app/privacy")!)
-                Text("•")
-                Link("Terms of Service", destination: URL(string: "https://smokejourney.app/terms")!)
-            }
-            .font(.caption)
-            .foregroundColor(.secondary)
-            .padding(.bottom)
         }
-        .padding()
-        .alert("Authentication Error", isPresented: .constant(authManager.error != nil)) {
-            Button("OK") {
-                authManager.error = nil
-            }
+        .navigationTitle("Sign In")
+        .alert("Error", isPresented: $showError) {
+            Button("OK", role: .cancel) { }
         } message: {
-            if let error = authManager.error {
-                Text(error.localizedDescription)
+            Text(errorMessage)
+        }
+        .sheet(isPresented: $showSignUp) {
+            NavigationStack {
+                SignUpView(isAuthenticated: $isAuthenticated)
             }
+        }
+    }
+    
+    private func signIn() {
+        isLoading = true
+        
+        Task {
+            do {
+                let user = try await AuthenticationManager.shared.signIn(email: email, password: password)
+                modelContext.insert(user)
+                isAuthenticated = true
+            } catch let error as AuthError {
+                errorMessage = error.localizedDescription
+                showError = true
+            } catch {
+                errorMessage = "An unexpected error occurred"
+                showError = true
+            }
+            isLoading = false
         }
     }
 } 

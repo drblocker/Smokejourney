@@ -19,6 +19,9 @@ struct SmokejourneyApp: App {
     @State private var cloudKitError: CloudKitError?
     
     init() {
+        // Register the transformer before any SwiftData operations
+        CutTypeValueTransformer.register()
+        
         do {
             // Setup configuration
             let configuration = cloudKitManager.setupModelConfiguration()
