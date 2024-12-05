@@ -5,8 +5,10 @@ import PhotosUI
 struct AddReviewView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var sessionManager = SmokingSessionManager.shared
     @Bindable var cigar: Cigar
     let smokingDuration: TimeInterval
+    var onDismiss: (() -> Void)?
     
     @State private var date = Date()
     @State private var isPrivate = false
@@ -111,41 +113,24 @@ struct AddReviewView: View {
     
     // Add computed property for validation
     private var isValid: Bool {
-        // Basic information validation
-        if environment.isEmpty {
-            validationMessage = "Please enter the smoking environment"
-            return false
-        }
+        // Basic ratings validation (ensure at least some ratings are provided)
+        let hasAppearanceRating = appearanceRating.overallConstruction > 0
+        let hasAromaRating = aromaRating.preLightScent > 0
+        let hasConstructionRating = constructionRating.firmnessConsistency > 0
+        let hasDrawRating = drawRating.resistanceLevel > 0
+        let hasFlavorRating = flavorRating.complexity > 0
+        let hasBurnRating = burnRating.burnLineEvenness > 0
         
-        // Ratings validation (ensure at least core ratings are provided)
-        if flavorRating.complexity == 0 || 
-           flavorRating.flavorTransitions == 0 || 
-           flavorRating.flavorIntensity == 0 {
-            validationMessage = "Please complete the flavor ratings"
-            return false
-        }
-        
-        if overallRating.enjoymentLevel == 0 ||
-           overallRating.wouldSmokeAgain == 0 {
-            validationMessage = "Please complete the overall ratings"
-            return false
-        }
-        
-        // Add humidity validation
-        if !humidity.isEmpty {
-            guard let humidityValue = Double(humidity),
-                  humidityValue >= 0 && humidityValue <= 99 else {
-                validationMessage = "Please enter a valid humidity (0-99)"
-                return false
-            }
-        }
-        
-        return true
+        // Require at least appearance, construction, and flavor ratings
+        return hasAppearanceRating && 
+               hasConstructionRating && 
+               hasFlavorRating
     }
     
-    init(cigar: Cigar, smokingDuration: TimeInterval) {
+    init(cigar: Cigar, smokingDuration: TimeInterval, onDismiss: (() -> Void)? = nil) {
         self.cigar = cigar
         self.smokingDuration = smokingDuration
+        self.onDismiss = onDismiss
     }
     
     var body: some View {
@@ -160,8 +145,8 @@ struct AddReviewView: View {
                     }
                     
                     Picker("Cut Type", selection: $cutType) {
-                        ForEach(CutType.allCases, id: \.self) { cut in
-                            Text(cut.rawValue).tag(cut)
+                        ForEach([CutType.guillotine, .vCut, .punch, .straight, .natural], id: \.self) { type in
+                            Text(type.stringValue).tag(type)
                         }
                     }
                     
@@ -324,19 +309,24 @@ struct AddReviewView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        dismiss()
+                        if let onDismiss = onDismiss {
+                            onDismiss()
+                        } else {
+                            dismiss()
+                        }
                     }
                 }
                 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        if isValid {
-                            saveReview()
-                            dismiss()
+                        saveReview()
+                        if let onDismiss = onDismiss {
+                            onDismiss()
                         } else {
-                            showValidationAlert = true
+                            dismiss()
                         }
                     }
+                    .disabled(!isValid)
                 }
             }
             .alert("Missing Information", isPresented: $showValidationAlert) {
@@ -427,26 +417,29 @@ struct AddReviewView: View {
         
         // Create consumption record
         let consumptionRecord = CigarPurchase(
-            quantity: -1,  // Negative quantity to represent consumption
-            price: nil,    // No price for consumption
+            quantity: 1,
+            price: nil,
             vendor: nil,
             url: nil,
-            type: .smoke   // Explicitly mark as smoke
+            type: .smoke
         )
         consumptionRecord.cigar = cigar
         consumptionRecord.date = date
         
-        if cigar.purchases == nil {
-            cigar.purchases = []
-        }
-        cigar.purchases?.append(consumptionRecord)
+        // Save to model context
+        modelContext.insert(review)
+        modelContext.insert(consumptionRecord)
         
-        review.cutType = cutType
-        if let humidityValue = Double(humidity) {
-            review.humidity = humidityValue
-        }
+        try? modelContext.save()
         
-        dismiss()
+        // Clear session state
+        sessionManager.clearLastEndedSession()
+        
+        if let onDismiss = onDismiss {
+            onDismiss()
+        } else {
+            dismiss()
+        }
     }
 }
 

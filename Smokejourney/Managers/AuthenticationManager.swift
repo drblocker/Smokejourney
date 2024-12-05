@@ -1,5 +1,7 @@
 import Foundation
 import SwiftData
+import os.log
+import AuthenticationServices
 
 enum AuthError: LocalizedError {
     case invalidCredentials
@@ -14,68 +16,76 @@ enum AuthError: LocalizedError {
         case .invalidCredentials:
             return "Invalid email or password"
         case .userNotFound:
-            return "No account found with this email"
+            return "No user found with this email"
         case .emailAlreadyInUse:
-            return "An account with this email already exists"
+            return "This email is already registered"
         case .weakPassword:
             return "Password must be at least 8 characters"
         case .networkError:
-            return "Network error. Please try again"
+            return "Network connection error"
         case .unknown:
-            return "An unexpected error occurred"
+            return "An unknown error occurred"
         }
     }
 }
 
 @MainActor
-class AuthenticationManager: ObservableObject {
+final class AuthenticationManager: ObservableObject {
     static let shared = AuthenticationManager()
+    private let logger = Logger(subsystem: "com.smokejourney", category: "Authentication")
     
-    private init() {}
+    @Published var isAuthenticated: Bool
+    @Published var currentUser: User?
     
-    func signIn(email: String, password: String) async throws -> User {
-        // Simulate network delay
-        try await Task.sleep(nanoseconds: 1_000_000_000)
-        
-        // Basic validation
-        guard email.contains("@") else {
-            throw AuthError.invalidCredentials
-        }
-        
-        guard password.count >= 8 else {
-            throw AuthError.weakPassword
-        }
-        
-        // Create a new user (in a real app, this would verify against a backend)
-        let displayName = email.components(separatedBy: "@").first
-        let user = User(email: email, displayName: displayName)
-        user.updateLastSignIn()
-        return user
+    private init() {
+        // Initialize with stored value
+        self.isAuthenticated = UserDefaults.standard.bool(forKey: "isAuthenticated")
+        logger.debug("Initial auth state: \(self.isAuthenticated)")
     }
     
-    func signUp(email: String, password: String, displayName: String?) async throws -> User {
-        // Simulate network delay
-        try await Task.sleep(nanoseconds: 1_000_000_000)
+    func processSignIn(with credential: ASAuthorizationAppleIDCredential) async -> User {
+        logger.debug("Processing Apple Sign In")
         
-        // Basic validation
-        guard email.contains("@") else {
-            throw AuthError.invalidCredentials
+        let user = User()
+        user.appleUserIdentifier = credential.user
+        
+        if let email = credential.email {
+            user.email = email
         }
         
-        guard password.count >= 8 else {
-            throw AuthError.weakPassword
+        if let fullName = credential.fullName {
+            user.displayName = [
+                fullName.givenName,
+                fullName.familyName
+            ].compactMap { $0 }.joined(separator: " ")
         }
         
-        // Create a new user
-        let user = User(
-            email: email,
-            displayName: displayName ?? email.components(separatedBy: "@").first
-        )
         user.updateLastSignIn()
+        currentUser = user
+        
+        // Update authentication state
+        isAuthenticated = true
+        UserDefaults.standard.set(true, forKey: "isAuthenticated")
+        UserDefaults.standard.set(credential.user, forKey: "userIdentifier")
+        
+        logger.debug("Apple Sign In successful for user: \(user.effectiveName)")
         return user
     }
     
     func signOut() {
-        // In a real app, this would clear tokens, etc.
+        logger.debug("User signed out")
+        currentUser = nil
+        isAuthenticated = false
+        UserDefaults.standard.set(false, forKey: "isAuthenticated")
+        UserDefaults.standard.removeObject(forKey: "userIdentifier")
+    }
+    
+    func restoreUser(_ user: User) {
+        currentUser = user
+        isAuthenticated = true
+        UserDefaults.standard.set(true, forKey: "isAuthenticated")
+        if let identifier = user.appleUserIdentifier {
+            UserDefaults.standard.set(identifier, forKey: "userIdentifier")
+        }
     }
 } 

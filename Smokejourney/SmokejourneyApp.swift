@@ -1,5 +1,5 @@
 //
-//  SmokejourneyApp.swift
+//  SmokeJourneyApp.swift
 //  Smokejourney
 //
 //  Created by Jason on 11/30/24.
@@ -7,70 +7,57 @@
 
 import SwiftUI
 import SwiftData
-import BackgroundTasks
-import CloudKit
+import Foundation
 
+// MARK: - Value Transformer Setup
+extension CutTypeValueTransformer {
+    static func registerIfNeeded() {
+        let name = CutTypeValueTransformer.transformerName
+        if !ValueTransformer.valueTransformerNames().contains(name) {
+            let transformer = CutTypeValueTransformer()
+            ValueTransformer.setValueTransformer(transformer, forName: name)
+        }
+    }
+}
+
+// MARK: - App
 @main
-struct SmokejourneyApp: App {
+struct SmokeJourneyApp: App {
+    @StateObject private var authManager = AuthenticationManager.shared
+    @StateObject private var sessionManager = SmokingSessionManager.shared
+    
     let container: ModelContainer
-    private let cloudKitManager = CloudKitManager.shared
-    private let backgroundTaskManager = BackgroundTaskHandler.shared
-    @State private var showCloudKitError = false
-    @State private var cloudKitError: CloudKitError?
     
     init() {
-        // Register the transformer before any SwiftData operations
-        CutTypeValueTransformer.register()
+        CutTypeValueTransformer.registerIfNeeded()
         
+        // Create the model container
         do {
-            // Setup configuration
-            let configuration = cloudKitManager.setupModelConfiguration()
-            
-            // Initialize container with unwrapped schema
-            if let schema = configuration.schema {
-                container = try ModelContainer(
-                    for: schema,
-                    configurations: [configuration]
-                )
-                
-                // Configure background tasks after container setup
-                backgroundTaskManager.setupBackgroundTasks()
-            } else {
-                fatalError("Failed to get schema from configuration")
-            }
-            
+            container = try ModelContainer(
+                for: User.self,
+                    Humidor.self,
+                    Cigar.self,
+                    CigarPurchase.self,
+                    Review.self,
+                    SmokingSession.self
+            )
         } catch {
-            fatalError("Failed to initialize ModelContainer: \(error)")
+            fatalError("Failed to create ModelContainer: \(error)")
         }
     }
     
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .modelContainer(container)
-                .task {
-                    do {
-                        try await cloudKitManager.verifyiCloudAccount()
-                    } catch let error as CloudKitError {
-                        cloudKitError = error
-                        showCloudKitError = true
-                    } catch {
-                        cloudKitError = .serverError(error)
-                        showCloudKitError = true
-                    }
+            Group {
+                if authManager.isAuthenticated {
+                    ContentView()
+                } else {
+                    LoginView(isAuthenticated: $authManager.isAuthenticated)
                 }
-                .alert("iCloud Sync Error",
-                       isPresented: $showCloudKitError,
-                       presenting: cloudKitError) { error in
-                    Button("Settings") {
-                        if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
-                            UIApplication.shared.open(settingsUrl)
-                        }
-                    }
-                    Button("OK", role: .cancel) { }
-                } message: { error in
-                    Text(error.errorDescription ?? "Unknown error")
-                }
+            }
+            .environmentObject(authManager)
+            .environmentObject(sessionManager)
         }
+        .modelContainer(container)
     }
 }

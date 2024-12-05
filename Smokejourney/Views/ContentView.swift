@@ -35,7 +35,8 @@ struct ContentView: View {
         }
         .onAppear {
             checkExistingUser()
-            sessionManager.initialize(with: modelContext)
+            sessionManager.setModelContext(modelContext)
+            sessionManager.initialize()
         }
     }
     
@@ -90,7 +91,7 @@ struct MainTabView: View {
             showReviewSheet = cigar != nil
         }
         .onAppear {
-            sessionManager.initialize(with: modelContext)
+            sessionManager.initialize()
         }
     }
 } 

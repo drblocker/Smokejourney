@@ -1,78 +1,111 @@
 import SwiftUI
 import SwiftData
 import AuthenticationServices
+import os.log
 
 struct LoginView: View {
     @Environment(\.modelContext) private var modelContext
     @Binding var isAuthenticated: Bool
-    
-    @State private var email = ""
-    @State private var password = ""
-    @State private var showError = false
-    @State private var errorMessage = ""
-    @State private var isLoading = false
-    @State private var showSignUp = false
-    
-    private var isValid: Bool {
-        !email.isEmpty && !password.isEmpty && email.contains("@")
-    }
+    @StateObject private var authManager = AuthenticationManager.shared
+    private let logger = Logger(subsystem: "com.smokejourney", category: "Authentication")
     
     var body: some View {
-        Form {
-            Section {
-                TextField("Email", text: $email)
-                    .textContentType(.emailAddress)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                
-                SecureField("Password", text: $password)
-                    .textContentType(.password)
-            }
+        VStack(spacing: 30) {
+            // App Logo/Branding
+            Image(systemName: "flame.circle.fill")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 100, height: 100)
+                .foregroundColor(.blue)
             
-            Section {
-                Button(action: signIn) {
-                    if isLoading {
-                        ProgressView()
-                    } else {
-                        Text("Sign In")
-                    }
-                }
-                .disabled(!isValid || isLoading)
-                
-                Button("Create Account") {
-                    showSignUp = true
-                }
-            }
+            Text("SmokeJourney")
+                .font(.largeTitle)
+                .bold()
+            
+            Text("Track your cigar journey")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            
+            Spacer()
+            
+            // Sign in with Apple Button
+            SignInWithAppleButton(
+                onRequest: configureAppleSignIn,
+                onCompletion: handleAppleSignIn
+            )
+            .signInWithAppleButtonStyle(.black)
+            .frame(height: 50)
+            .padding(.horizontal)
+            
+            // Privacy Note
+            Text("Your data is stored securely and synced across your devices using iCloud")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding()
         }
-        .navigationTitle("Sign In")
-        .alert("Error", isPresented: $showError) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(errorMessage)
-        }
-        .sheet(isPresented: $showSignUp) {
-            NavigationStack {
-                SignUpView(isAuthenticated: $isAuthenticated)
-            }
+        .padding()
+        .task {
+            await checkExistingAuth()
         }
     }
     
-    private func signIn() {
-        isLoading = true
-        
-        Task {
-            do {
-                let user = try await AuthenticationManager.shared.signIn(email: email, password: password)
-                modelContext.insert(user)
-                isAuthenticated = true
-            } catch let error as AuthError {
-                errorMessage = error.localizedDescription
-                showError = true
-            } catch {
-                errorMessage = "An unexpected error occurred"
-                showError = true
+    private func configureAppleSignIn(_ request: ASAuthorizationAppleIDRequest) {
+        request.requestedScopes = [.fullName, .email]
+    }
+    
+    private func handleAppleSignIn(_ result: Result<ASAuthorization, Error>) {
+        switch result {
+        case .success(let authorization):
+            guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential else {
+                logger.error("Unable to get Apple ID credentials")
+                return
             }
-            isLoading = false
+            
+            // Create user
+            let user = User()
+            if let email = appleIDCredential.email {
+                user.email = email
+            }
+            if let fullName = appleIDCredential.fullName {
+                user.displayName = [
+                    fullName.givenName,
+                    fullName.familyName
+                ].compactMap { $0 }.joined(separator: " ")
+            }
+            user.appleUserIdentifier = appleIDCredential.user
+            user.updateLastSignIn()
+            
+            // Save to SwiftData
+            modelContext.insert(user)
+            
+            withAnimation {
+                isAuthenticated = true
+            }
+            
+            logger.debug("Successfully signed in with Apple")
+            
+        case .failure(let error):
+            logger.error("Apple sign in failed: \(error.localizedDescription)")
         }
     }
+    
+    private func checkExistingAuth() async {
+        if UserDefaults.standard.bool(forKey: "isAuthenticated") {
+            let users = try? modelContext.fetch(FetchDescriptor<User>())
+            if let user = users?.first {
+                logger.debug("Restoring existing user session")
+                authManager.restoreUser(user)
+                isAuthenticated = true
+            } else {
+                logger.error("No user found in database")
+                authManager.signOut()
+            }
+        }
+    }
+}
+
+#Preview {
+    LoginView(isAuthenticated: .constant(false))
+        .modelContainer(for: User.self)
 } 

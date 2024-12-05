@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import os.log
 
 struct SmokingSessionView: View {
     @Environment(\.dismiss) private var dismiss
@@ -8,12 +9,29 @@ struct SmokingSessionView: View {
     
     @StateObject private var sessionManager = SmokingSessionManager.shared
     @StateObject private var activeState = ActiveSmokingState.shared
-    @State private var showStopConfirmation = false
-    @State private var navigateToReview = false
+    @State private var navigationPath = NavigationPath()
     @State private var finalDuration: TimeInterval = 0
     
+    private let logger = Logger(subsystem: "com.smokejourney", category: "SmokingSession")
+    
+    private func endSession() {
+        logger.debug("Stop button tapped")
+        
+        // Store duration before ending session
+        finalDuration = sessionManager.elapsedTime
+        
+        // End session managers
+        sessionManager.endCurrentSession()
+        activeState.endSession()
+        
+        logger.debug("Session ended, duration: \(finalDuration)")
+        
+        // Navigate to review
+        navigationPath.append("review")
+    }
+    
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             VStack(spacing: 30) {
                 // Timer Display
                 Text(sessionManager.formattedTime())
@@ -34,9 +52,7 @@ struct SmokingSessionView: View {
                 // Timer Controls
                 HStack(spacing: 40) {
                     if sessionManager.isRunning {
-                        Button(action: {
-                            showStopConfirmation = true
-                        }) {
+                        Button(action: endSession) {
                             Label("Stop", systemImage: "stop.circle.fill")
                                 .font(.title)
                                 .foregroundColor(.red)
@@ -69,49 +85,19 @@ struct SmokingSessionView: View {
             }
             .navigationTitle("Smoking Session")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(isPresented: $navigateToReview) {
-                AddReviewView(cigar: cigar, smokingDuration: finalDuration)
-                    .navigationBarBackButtonHidden(true)
-            }
-            .confirmationDialog(
-                "End Smoking Session?",
-                isPresented: $showStopConfirmation,
-                titleVisibility: .visible
-            ) {
-                Button("Review", role: .destructive) {
-                    finalDuration = sessionManager.elapsedTime
-                    sessionManager.endCurrentSession()
-                    activeState.endSession()
-                    navigateToReview = true
-                }
-                Button("Skip Review", role: .none) {
-                    // Create smoke record without review
-                    let smoke = CigarPurchase(
-                        quantity: -1,
-                        price: nil,
-                        vendor: nil,
-                        url: nil,
-                        type: .smoke
+            .navigationDestination(for: String.self) { route in
+                if route == "review" {
+                    AddReviewView(
+                        cigar: cigar,
+                        smokingDuration: finalDuration,
+                        onDismiss: {
+                            navigationPath.removeLast()
+                            dismiss()
+                        }
                     )
-                    smoke.date = Date()
-                    smoke.cigar = cigar
-                    
-                    if cigar.purchases == nil {
-                        cigar.purchases = []
-                    }
-                    cigar.purchases?.append(smoke)
-                    
-                    // End the session
-                    sessionManager.endCurrentSession()
-                    activeState.endSession()
-                    
-                    // Dismiss back to cigar detail view
-                    dismiss()
+                    .navigationBarBackButtonHidden()
                 }
-                Button("Cancel", role: .cancel) { }
-            } message: {
-                Text("Would you like to review this smoking session?")
             }
         }
     }
-} 
+}

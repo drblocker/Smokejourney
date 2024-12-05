@@ -5,6 +5,13 @@ import Foundation
 struct PurchaseRow: View {
     let purchase: CigarPurchase
     
+    private let currencyFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.maximumFractionDigits = 2
+        return formatter
+    }()
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(purchase.date?.formatted(date: .abbreviated, time: .omitted) ?? "Unknown Date")
@@ -20,7 +27,7 @@ struct PurchaseRow: View {
                 
                 Spacer()
                 
-                if purchase.purchaseType == .purchase,
+                if purchase.type == .purchase,
                    let price = purchase.price,
                    let formattedPrice = currencyFormatter.string(from: price as NSDecimalNumber) {
                     Text(formattedPrice)
@@ -28,7 +35,7 @@ struct PurchaseRow: View {
             }
             
             if let vendor = purchase.vendor {
-                Text(purchase.purchaseType == .gift ? "To: \(vendor)" : vendor)
+                Text(purchase.type == .gift ? "To: \(vendor)" : vendor)
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -43,7 +50,7 @@ struct PurchaseRow: View {
     }
     
     private func getTransactionLabel() -> String {
-        switch purchase.purchaseType {
+        switch purchase.type {
         case .purchase:
             return "Added: \(purchase.quantity ?? 0)"
         case .smoke:
@@ -54,7 +61,7 @@ struct PurchaseRow: View {
     }
     
     private func getTransactionIcon() -> String {
-        switch purchase.purchaseType {
+        switch purchase.type {
         case .purchase: return "plus.circle.fill"
         case .smoke: return "flame.fill"
         case .gift: return "gift.fill"
@@ -62,7 +69,7 @@ struct PurchaseRow: View {
     }
     
     private func getTransactionColor() -> Color {
-        switch purchase.purchaseType {
+        switch purchase.type {
         case .purchase: return .green
         case .smoke: return .orange
         case .gift: return .purple

@@ -108,9 +108,19 @@ struct HumidorDetailView: View {
     
     // MARK: - Actions
     private func deleteCigars(at offsets: IndexSet) {
-        for index in offsets {
-            let cigar = filteredCigars[index]
+        // Get cigars to delete before modifying the array
+        let cigarsToDelete = offsets.map { filteredCigars[$0] }
+        
+        // Delete each cigar
+        for cigar in cigarsToDelete {
+            logger.debug("Deleting cigar: \(cigar.brand ?? "") - \(cigar.name ?? "")")
             modelContext.delete(cigar)
+        }
+        
+        // Update humidor's cigars array if needed
+        if humidor.cigars?.isEmpty == true {
+            humidor.cigars = []
+            logger.debug("Humidor is now empty")
         }
     }
     

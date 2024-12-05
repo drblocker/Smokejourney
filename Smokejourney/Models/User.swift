@@ -3,17 +3,14 @@ import Foundation
 
 @Model
 final class User {
-    // MARK: - Properties
     var email: String?
     var displayName: String?
     var createdAt: Date?
     var lastSignInDate: Date?
+    var appleUserIdentifier: String?
     var preferences: [String: String]?
     
-    // MARK: - Initialization
-    init(email: String, displayName: String? = nil) {
-        self.email = email
-        self.displayName = displayName
+    init() {
         self.createdAt = Date()
         self.lastSignInDate = Date()
         self.preferences = [:]
@@ -21,7 +18,7 @@ final class User {
     
     // MARK: - Computed Properties
     var effectiveName: String {
-        displayName ?? email ?? "User"
+        displayName ?? email?.components(separatedBy: "@").first ?? "User"
     }
     
     var effectiveEmail: String {
@@ -34,7 +31,7 @@ final class User {
     
     // MARK: - Helper Methods
     func updateLastSignIn() {
-        lastSignInDate = Date()
+        self.lastSignInDate = Date()
     }
     
     func setPreference(_ value: String, forKey key: String) {

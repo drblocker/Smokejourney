@@ -56,11 +56,11 @@ struct GiftCigarView: View {
     
     private func saveGift() -> Bool {
         let gift = CigarPurchase(
-            quantity: -quantity,  // Negative quantity to represent removal from inventory
+            quantity: quantity,
             price: nil,
             vendor: recipient,    // Use vendor field to store recipient
             url: nil,
-            notes: notes.isEmpty ? nil : notes,  // Pass notes to initializer
+            notes: notes.isEmpty ? nil : notes,  // Pass notes
             type: .gift
         )
         gift.date = date
