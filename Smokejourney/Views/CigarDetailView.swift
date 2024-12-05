@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import PhotosUI
+import os.log
 
 struct CigarDetailView: View {
     @Environment(\.dismiss) private var dismiss
@@ -16,6 +17,8 @@ struct CigarDetailView: View {
     @State private var showAddReview = false
     @State private var hasActiveSession = false
     @State private var showGiftSheet = false
+    
+    private let logger = Logger(subsystem: "com.smokejourney", category: "CigarDetailView")
     
     private let currencyFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
@@ -154,17 +157,22 @@ struct CigarDetailView: View {
     }
     
     private func checkForActiveSession() {
-        let descriptor = FetchDescriptor<SmokingSession>()
+        // Simple predicate just for active sessions
+        let descriptor = FetchDescriptor<SmokingSession>(
+            predicate: #Predicate<SmokingSession> { session in
+                session.isActive
+            }
+        )
         
         do {
             let sessions = try modelContext.fetch(descriptor)
-            if let activeSession = sessions.first(where: { $0.isActive && $0.cigar?.id == cigar.id }) {
-                hasActiveSession = activeSession.isActive
-            } else {
-                hasActiveSession = false
+            // Filter in memory
+            hasActiveSession = sessions.contains { session in
+                session.cigar?.id == cigar.id
             }
+            logger.debug("Found active session: \(hasActiveSession)")
         } catch {
-            print("Error fetching active session: \(error)")
+            logger.error("Error fetching active session: \(error.localizedDescription)")
             hasActiveSession = false
         }
     }

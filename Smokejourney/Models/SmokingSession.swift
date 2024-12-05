@@ -13,6 +13,7 @@ final class SmokingSession {
     
     init(cigar: Cigar) {
         self.cigar = cigar
+        self.startTime = Date()
         self.isActive = false
         self.totalElapsedTime = 0
     }
