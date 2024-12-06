@@ -1,12 +1,10 @@
 import SwiftUI
 import SwiftData
-import os.log
 
-struct HumidorListView: View {
-    @Environment(\.modelContext) var modelContext
+struct HumidorView: View {
+    @Environment(\.modelContext) private var modelContext
     @Query private var humidors: [Humidor]
     @State private var showAddHumidor = false
-    private let logger = Logger(subsystem: "com.smokejourney", category: "HumidorListView")
     
     var body: some View {
         NavigationStack {
@@ -44,12 +42,6 @@ struct HumidorListView: View {
                     }
                 }
             }
-        }
-        .onAppear {
-            logger.debug("HumidorListView appeared, humidor count: \(humidors.count)")
-        }
-        .onChange(of: humidors) { oldValue, newValue in
-            logger.debug("Humidors changed: Old count: \(oldValue.count), New count: \(newValue.count)")
         }
     }
     

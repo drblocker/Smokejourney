@@ -39,7 +39,9 @@ final class BackgroundTaskHandler {
     
     @objc private func appWillEnterForeground() {
         Task {
-            await refreshSensorData()
+            if let sensor = await environmentViewModel.sensors.first {
+                await environmentViewModel.fetchLatestSample(for: sensor.id)
+            }
             scheduleBackgroundTask() // Reschedule after coming to foreground
         }
     }
@@ -57,7 +59,8 @@ final class BackgroundTaskHandler {
         do {
             let sensors = try await sensorPushService.getSensors()
             for sensor in sensors {
-                let samples = try await sensorPushService.getSamples(limit: 1)
+                await environmentViewModel.fetchLatestSample(for: sensor.id)
+                let samples = try await sensorPushService.getSamples(for: sensor.id, limit: 1)
                 if let latestSample = samples.first {
                     await checkEnvironmentalConditions(latestSample)
                 }
@@ -132,11 +135,16 @@ final class BackgroundTaskHandler {
     }
     
     private func performSensorSync() async throws {
-        let samples = try await sensorPushService.getSamples(limit: 1)
+        let sensors = try await sensorPushService.getSensors()
+        guard let firstSensor = sensors.first else {
+            logger.debug("No sensors available")
+            return
+        }
         
+        let samples = try await sensorPushService.getSamples(for: firstSensor.id, limit: 1)
         if let latestSample = samples.first {
             await checkEnvironmentalConditions(latestSample)
-            await environmentViewModel.fetchLatestData()
+            await environmentViewModel.fetchLatestSample(for: firstSensor.id)
             lastSuccessfulSync = Date()
             failedAttempts = 0
         }

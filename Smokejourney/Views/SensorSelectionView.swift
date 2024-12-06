@@ -4,7 +4,7 @@ import SwiftData
 struct SensorSelectionView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = HumidorEnvironmentViewModel()
-    @Bindable var humidor: Humidor
+    @Binding var selectedSensorId: String?
     
     var body: some View {
         List {
@@ -18,7 +18,7 @@ struct SensorSelectionView: View {
                 } else {
                     ForEach(viewModel.sensors) { sensor in
                         Button(action: {
-                            humidor.sensorId = sensor.id
+                            selectedSensorId = sensor.id
                             dismiss()
                         }) {
                             HStack {
@@ -32,7 +32,7 @@ struct SensorSelectionView: View {
                                 
                                 Spacer()
                                 
-                                if sensor.id == humidor.sensorId {
+                                if sensor.id == selectedSensorId {
                                     Image(systemName: "checkmark.circle.fill")
                                         .foregroundColor(.green)
                                 }
@@ -40,10 +40,6 @@ struct SensorSelectionView: View {
                         }
                     }
                 }
-            } header: {
-                Text("Available Sensors")
-            } footer: {
-                Text("Select a sensor to monitor this humidor's environment")
             }
         }
         .navigationTitle("Select Sensor")

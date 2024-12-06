@@ -1,71 +1,75 @@
 import SwiftUI
 import SwiftData
-import os.log
 
 struct SensorManagementView: View {
     @StateObject private var viewModel = HumidorEnvironmentViewModel()
-    @State private var showAddSensor = false
+    @AppStorage("sensorPushAuthenticated") private var isAuthenticated = false
     @State private var showSensorDetails = false
     @State private var selectedSensor: SensorPushDevice?
-    @State private var showAlert = false
-    @State private var alertMessage = ""
+    @State private var showError = false
+    @State private var errorMessage = ""
     
     var body: some View {
         List {
-            Section {
-                ForEach(viewModel.sensors) { sensor in
-                    SensorRowView(sensor: sensor)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            selectedSensor = sensor
-                            showSensorDetails = true
+            if !isAuthenticated {
+                Section {
+                    ContentUnavailableView {
+                        Label("Not Connected", systemImage: "sensor.fill")
+                    } description: {
+                        Text("Please sign in to SensorPush in Profile settings to manage your sensors")
+                    }
+                }
+            } else {
+                Section {
+                    if viewModel.sensors.isEmpty {
+                        ContentUnavailableView {
+                            Label("No Sensors", systemImage: "sensor.fill")
+                        } description: {
+                            Text("No SensorPush sensors found")
                         }
+                    } else {
+                        ForEach(viewModel.sensors) { sensor in
+                            SensorRowView(sensor: sensor)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    selectedSensor = sensor
+                                    showSensorDetails = true
+                                }
+                        }
+                    }
+                } header: {
+                    if !viewModel.sensors.isEmpty {
+                        Text("Available Sensors")
+                    }
                 }
-            } header: {
-                if !viewModel.sensors.isEmpty {
-                    Text("Connected Sensors")
-                }
-            }
-            
-            if viewModel.sensors.isEmpty {
-                ContentUnavailableView {
-                    Label("No Sensors", systemImage: "sensor.fill")
-                } description: {
-                    Text("Add a SensorPush sensor to monitor your humidor")
-                } actions: {
-                    Button(action: { showAddSensor = true }) {
-                        Text("Add Sensor")
+                
+                Section {
+                    NavigationLink(destination: HumidorAlertSettingsView()) {
+                        Label("Alert Settings", systemImage: "bell.badge")
                     }
                 }
             }
         }
         .navigationTitle("Sensors")
-        .toolbar {
-            if !viewModel.sensors.isEmpty {
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: { showAddSensor = true }) {
-                        Label("Add Sensor", systemImage: "plus")
-                    }
-                }
-            }
-        }
-        .sheet(isPresented: $showAddSensor) {
-            NavigationStack {
-                SensorPushAuthView()
-            }
-        }
         .sheet(item: $selectedSensor) { sensor in
             NavigationStack {
                 SensorDetailView(sensor: sensor)
             }
         }
-        .alert("Error", isPresented: $showAlert) {
+        .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text(alertMessage)
+            Text(errorMessage)
         }
         .task {
-            await viewModel.fetchSensors()
+            if isAuthenticated {
+                await viewModel.fetchSensors()
+            }
+        }
+        .refreshable {
+            if isAuthenticated {
+                await viewModel.fetchSensors()
+            }
         }
     }
 }
@@ -87,6 +91,7 @@ struct SensorRowView: View {
                     Text(formatBattery(sensor.batteryVoltage))
                 } icon: {
                     Image(systemName: batteryIcon(sensor.batteryVoltage))
+                        .foregroundColor(batteryColor(sensor.batteryVoltage))
                 }
                 
                 Spacer()
@@ -95,11 +100,13 @@ struct SensorRowView: View {
                     Text(formatSignal(sensor.rssi))
                 } icon: {
                     Image(systemName: signalIcon(sensor.rssi))
+                        .foregroundColor(signalColor(sensor.rssi))
                 }
             }
             .font(.caption)
             .foregroundColor(.secondary)
         }
+        .padding(.vertical, 4)
     }
     
     private func formatBattery(_ voltage: Double) -> String {
@@ -118,6 +125,15 @@ struct SensorRowView: View {
         }
     }
     
+    private func batteryColor(_ voltage: Double) -> Color {
+        let percentage = (voltage - 2.2) / (3.0 - 2.2)
+        switch percentage {
+        case ..<0.2: return .red
+        case ..<0.4: return .orange
+        default: return .green
+        }
+    }
+    
     private func formatSignal(_ rssi: Int) -> String {
         return "\(rssi) dBm"
     }
@@ -128,6 +144,14 @@ struct SensorRowView: View {
         case ...(-70): return "wifi.1"
         case ...(-60): return "wifi.2"
         default: return "wifi"
+        }
+    }
+    
+    private func signalColor(_ rssi: Int) -> Color {
+        switch rssi {
+        case ...(-90): return .red
+        case ...(-70): return .orange
+        default: return .green
         }
     }
 }

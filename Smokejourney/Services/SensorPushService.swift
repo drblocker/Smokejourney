@@ -1,355 +1,298 @@
 import Foundation
 import os.log
 
-enum SensorPushError: LocalizedError {
-    case authenticationFailed(message: String)
-    case invalidResponse
-    case networkError(Error)
-    case invalidToken
-    case rateLimitExceeded
-    case decodingError(String)
-    
-    var errorDescription: String? {
-        switch self {
-        case .authenticationFailed(let message):
-            return "Authentication failed: \(message)"
-        case .invalidResponse:
-            return "Invalid response from server"
-        case .networkError(let error):
-            return "Network error: \(error.localizedDescription)"
-        case .invalidToken:
-            return "Invalid or expired token"
-        case .rateLimitExceeded:
-            return "Rate limit exceeded. Please try again later."
-        case .decodingError(let message):
-            return "Decoding error: \(message)"
-        }
-    }
-}
-
-// Request/Response models matching the API exactly
-struct AuthRequest: Codable {
-    let email: String
-    let password: String
-}
-
-struct AuthResponse: Codable {
-    let code: String?
-    let authorization: String?
-    let message: String?
-    let status: String?
-    
-    var authToken: String {
-        // Try both possible fields for the auth token
-        return code ?? authorization ?? ""
-    }
-}
-
-struct TokenRequest: Codable {
-    let authorization: String
-}
-
-struct TokenResponse: Codable {
-    let accesstoken: String
-    let exp: Int?
-    let nbf: Double?
-    let type: String?
-    let iat: Int?
-    let iss: String?
-    let sub: String?
-    
-    var effectiveToken: String {
-        return accesstoken
-    }
-}
-
-actor SensorPushService {
+class SensorPushService {
     static let shared = SensorPushService()
     private let baseURL = "https://api.sensorpush.com/api/v1"
-    private let logger = Logger(subsystem: "com.jason.smokejourney", category: "SensorPush")
     private let defaults = UserDefaults.standard
+    private let logger = Logger(subsystem: "com.smokejourney", category: "SensorPush")
     
-    // Keys for UserDefaults
-    private let accessTokenKey = "sensorpush.accessToken"
-    private let lastRequestTimeKey = "sensorpush.lastRequestTime"
+    // Keys for storing tokens
+    private let accessTokenKey = "sensorPushAccessToken"
+    private let authTokenKey = "sensorPushAuthToken"
+    private let tokenExpiryKey = "sensorPushTokenExpiry"
     
     private var accessToken: String? {
         get { defaults.string(forKey: accessTokenKey) }
         set { defaults.set(newValue, forKey: accessTokenKey) }
     }
     
-    private var lastRequestTime: Date? {
-        get { defaults.object(forKey: lastRequestTimeKey) as? Date }
-        set { defaults.set(newValue, forKey: lastRequestTimeKey) }
+    private var authToken: String? {
+        get { defaults.string(forKey: authTokenKey) }
+        set { defaults.set(newValue, forKey: authTokenKey) }
     }
     
-    private let minimumRequestInterval: TimeInterval = 1
-    
-    private init() {
-        // Restore state from UserDefaults if available
-        if let token = defaults.string(forKey: accessTokenKey) {
-            self.accessToken = token
-            defaults.set(true, forKey: "sensorPushAuthenticated")
-        }
+    private var tokenExpiry: Date? {
+        get { defaults.object(forKey: tokenExpiryKey) as? Date }
+        set { defaults.set(newValue, forKey: tokenExpiryKey) }
     }
     
+    // MARK: - Authentication
     func authenticate(email: String, password: String) async throws -> String {
+        // Step 1: Get authorization token
+        let authorizeURL = URL(string: "\(baseURL)/oauth/authorize")!
+        var authorizeRequest = URLRequest(url: authorizeURL)
+        authorizeRequest.httpMethod = "POST"
+        authorizeRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let authBody = ["email": email, "password": password]
+        let authBodyData = try JSONEncoder().encode(authBody)
+        authorizeRequest.httpBody = authBodyData
+        
+        // Log request details (excluding sensitive info)
+        logger.debug("Authorization Request - URL: \(authorizeURL.absoluteString)")
+        logger.debug("Authorization Request - Headers: \(authorizeRequest.allHTTPHeaderFields ?? [:])")
+        
+        let (authData, authResponse) = try await URLSession.shared.data(for: authorizeRequest)
+        
+        // Log response details
+        if let responseString = String(data: authData, encoding: .utf8) {
+            logger.debug("Authorization Raw Response: \(responseString)")
+        }
+        
+        guard let httpAuthResponse = authResponse as? HTTPURLResponse else {
+            logger.error("Invalid response type from authorization request")
+            throw SensorPushError.invalidResponse(statusCode: 0, message: "Invalid response type")
+        }
+        
+        logger.debug("Authorization Response Status: \(httpAuthResponse.statusCode)")
+        
+        guard httpAuthResponse.statusCode == 200 else {
+            if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: authData) {
+                logger.error("Authorization failed: \(errorResponse.message)")
+                throw SensorPushError.authenticationFailed(message: errorResponse.message)
+            }
+            throw SensorPushError.invalidResponse(statusCode: httpAuthResponse.statusCode, message: "Authorization request failed")
+        }
+        
+        // Try to decode the authorization response
         do {
-            // Step 1: Get authorization code
-            let authRequest = AuthRequest(email: email, password: password)
-            let authURL = URL(string: "\(baseURL)/oauth/authorize")!
+            let authResult = try JSONDecoder().decode(AuthResponse.self, from: authData)
+            logger.debug("Successfully decoded authorization token")
             
-            var request = URLRequest(url: authURL)
-            request.httpMethod = "POST"
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.setValue("application/json", forHTTPHeaderField: "Accept")
+            // Store auth token
+            self.authToken = authResult.authorization
             
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = .prettyPrinted
-            let requestData = try encoder.encode(authRequest)
+            // Step 2: Get access token using authorization
+            let accessTokenURL = URL(string: "\(baseURL)/oauth/accesstoken")!
+            var tokenRequest = URLRequest(url: accessTokenURL)
+            tokenRequest.httpMethod = "POST"
+            tokenRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
             
-            // Log request details
-            logger.debug("Auth Request URL: \(authURL.absoluteString)")
-            logger.debug("Auth Request Headers: \(request.allHTTPHeaderFields ?? [:])")
-            if let requestString = String(data: requestData, encoding: .utf8) {
-                logger.debug("Auth Request Body: \(requestString)")
+            let tokenBody = ["authorization": authResult.authorization]
+            let tokenBodyData = try JSONEncoder().encode(tokenBody)
+            tokenRequest.httpBody = tokenBodyData
+            
+            logger.debug("Access Token Request - URL: \(accessTokenURL.absoluteString)")
+            let (tokenData, tokenResponse) = try await URLSession.shared.data(for: tokenRequest)
+            
+            // Log token response
+            if let tokenResponseString = String(data: tokenData, encoding: .utf8) {
+                logger.debug("Access Token Raw Response: \(tokenResponseString)")
             }
-            
-            request.httpBody = requestData
-            
-            let (authData, authResponse) = try await URLSession.shared.data(for: request)
-            
-            // Log raw response for debugging
-            if let responseString = String(data: authData, encoding: .utf8) {
-                logger.debug("Raw Auth Response: \(responseString)")
-            }
-            
-            guard let httpResponse = authResponse as? HTTPURLResponse else {
-                throw SensorPushError.invalidResponse
-            }
-            
-            logger.debug("Auth Response Status Code: \(httpResponse.statusCode)")
-            logger.debug("Auth Response Headers: \(httpResponse.allHeaderFields)")
-            
-            guard httpResponse.statusCode == 200 else {
-                if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: authData) {
-                    throw SensorPushError.authenticationFailed(message: errorResponse.message)
-                }
-                throw SensorPushError.authenticationFailed(message: "Authentication failed with status \(httpResponse.statusCode)")
-            }
-            
-            // Try to decode the response
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase // Handle both camelCase and snake_case
-            
-            let authResult = try decoder.decode(AuthResponse.self, from: authData)
-            
-            guard !authResult.authToken.isEmpty else {
-                throw SensorPushError.authenticationFailed(message: "No authorization token in response")
-            }
-            
-            // Step 2: Exchange authorization code for access token
-            let tokenRequest = TokenRequest(authorization: authResult.authToken)
-            let tokenURL = URL(string: "\(baseURL)/oauth/accesstoken")!
-            
-            var tokenReq = URLRequest(url: tokenURL)
-            tokenReq.httpMethod = "POST"
-            tokenReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            tokenReq.setValue("application/json", forHTTPHeaderField: "Accept")
-            
-            let tokenRequestData = try encoder.encode(tokenRequest)
-            
-            // Log token request details
-            logger.debug("Token Request URL: \(tokenURL.absoluteString)")
-            logger.debug("Token Request Headers: \(tokenReq.allHTTPHeaderFields ?? [:])")
-            if let tokenRequestString = String(data: tokenRequestData, encoding: .utf8) {
-                logger.debug("Token Request Body: \(tokenRequestString)")
-            }
-            
-            tokenReq.httpBody = tokenRequestData
-            
-            let (tokenData, tokenResponse) = try await URLSession.shared.data(for: tokenReq)
             
             guard let httpTokenResponse = tokenResponse as? HTTPURLResponse else {
-                throw SensorPushError.invalidResponse
+                logger.error("Invalid response type from token request")
+                throw SensorPushError.invalidResponse(statusCode: 0, message: "Invalid token response type")
             }
             
-            logger.debug("Token Response Status Code: \(httpTokenResponse.statusCode)")
-            logger.debug("Token Response Headers: \(httpTokenResponse.allHeaderFields)")
-            
-            if let rawResponse = String(data: tokenData, encoding: .utf8) {
-                logger.debug("Raw Token Response Body: \(rawResponse)")
-            }
+            logger.debug("Access Token Response Status: \(httpTokenResponse.statusCode)")
             
             guard httpTokenResponse.statusCode == 200 else {
                 if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: tokenData) {
+                    logger.error("Token request failed: \(errorResponse.message)")
                     throw SensorPushError.authenticationFailed(message: errorResponse.message)
                 }
-                throw SensorPushError.authenticationFailed(message: "Token request failed with status \(httpTokenResponse.statusCode)")
+                throw SensorPushError.invalidResponse(statusCode: httpTokenResponse.statusCode, message: "Token request failed")
             }
             
-            do {
-                let tokenResult = try decoder.decode(TokenResponse.self, from: tokenData)
-                self.accessToken = tokenResult.effectiveToken
-                defaults.set(true, forKey: "sensorPushAuthenticated")
-                return tokenResult.effectiveToken
-            } catch let decodingError as DecodingError {
-                logger.error("Decoding error details: \(String(describing: decodingError))")
-                if let rawResponse = String(data: tokenData, encoding: .utf8) {
-                    logger.debug("Failed to decode response: \(rawResponse)")
-                }
-                throw SensorPushError.decodingError("Failed to decode response: \(decodingError.localizedDescription)")
-            }
+            let tokenResult = try JSONDecoder().decode(TokenResponse.self, from: tokenData)
+            
+            // Store tokens and expiry
+            self.accessToken = tokenResult.accessToken
+            self.tokenExpiry = Date().addingTimeInterval(30 * 60) // 30 minutes
+            defaults.set(true, forKey: "sensorPushAuthenticated")
+            
+            logger.debug("Successfully authenticated and got access token")
+            return tokenResult.accessToken
             
         } catch {
-            logger.error("Authentication error: \(String(describing: error))")
-            throw error
-        }
-    }
-    
-    func signOut() {
-        accessToken = nil
-        lastRequestTime = nil
-        defaults.set(false, forKey: "sensorPushAuthenticated")
-    }
-    
-    // MARK: - API Requests
-    func getSensors() async throws -> [SensorPushDevice] {
-        guard let token = accessToken else {
-            throw SensorPushError.invalidToken
-        }
-        
-        try await checkRateLimit()
-        
-        let url = URL(string: "\(baseURL)/devices/sensors")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"  // Changed back to POST per API docs
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") // Add "Bearer " prefix
-        
-        // Add empty body as required by API
-        let emptyBody = try JSONEncoder().encode(EmptyRequest())
-        request.httpBody = emptyBody
-        
-        // Log request details for debugging
-        logger.debug("Sensors Request URL: \(url.absoluteString)")
-        logger.debug("Sensors Request Headers: \(request.allHTTPHeaderFields ?? [:])")
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        // Log the response for debugging
-        if let responseString = String(data: data, encoding: .utf8) {
-            logger.debug("Sensors Response: \(responseString)")
-        }
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw SensorPushError.invalidResponse
-        }
-        
-        logger.debug("Sensors Response Status Code: \(httpResponse.statusCode)")
-        
-        guard httpResponse.statusCode == 200 else {
-            if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
-                throw SensorPushError.authenticationFailed(message: errorResponse.message)
+            logger.error("Failed to decode response: \(error.localizedDescription)")
+            if let dataString = String(data: authData, encoding: .utf8) {
+                logger.debug("Failed to decode data: \(dataString)")
             }
-            throw SensorPushError.authenticationFailed(message: "Failed to fetch sensors with status \(httpResponse.statusCode)")
-        }
-        
-        let decoder = JSONDecoder()
-        let sensorResponse = try decoder.decode([String: SensorPushDevice].self, from: data)
-        
-        // Convert the dictionary response to our Sensor array
-        return sensorResponse.map { (id, details) in
-            SensorPushDevice(
-                id: id,
-                name: details.name,
-                deviceId: details.deviceId,
-                type: details.type,
-                batteryVoltage: details.batteryVoltage,
-                rssi: details.rssi,
-                active: details.active
-            )
+            throw SensorPushError.decodingError("Failed to decode authentication response: \(error.localizedDescription)")
         }
     }
     
-    func getSamples(limit: Int = 20) async throws -> [SensorSample] {
-        guard let token = accessToken else {
-            throw SensorPushError.invalidToken
+    // MARK: - Token Management
+    private func getValidToken() async throws -> String {
+        // Check if we have a valid access token
+        if let expiry = tokenExpiry,
+           let token = accessToken,
+           expiry > Date().addingTimeInterval(60) { // Buffer of 1 minute
+            return token
         }
         
-        try await checkRateLimit()
+        // If we have an auth token, try to get a new access token
+        if let authToken = authToken {
+            let accessTokenURL = URL(string: "\(baseURL)/oauth/accesstoken")!
+            var request = URLRequest(url: accessTokenURL)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            
+            let tokenBody = ["authorization": authToken]
+            request.httpBody = try JSONEncoder().encode(tokenBody)
+            
+            let (data, _) = try await URLSession.shared.data(for: request)
+            let tokenResult = try JSONDecoder().decode(TokenResponse.self, from: data)
+            
+            self.accessToken = tokenResult.accessToken
+            self.tokenExpiry = Date().addingTimeInterval(30 * 60)
+            return tokenResult.accessToken
+        }
+        
+        throw SensorPushError.invalidToken
+    }
+    
+    // MARK: - API Methods
+    func getSamples(for sensorId: String, limit: Int = 20) async throws -> [SensorSample] {
+        let token = try await getValidToken()
         
         let url = URL(string: "\(baseURL)/samples")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(token, forHTTPHeaderField: "Authorization")
         
-        // Create request body
-        let requestBody = [
-            "limit": limit
-        ]
-        request.httpBody = try JSONEncoder().encode(requestBody)
+        let sampleRequest = SampleRequest(
+            limit: limit,
+            timestamp: "desc",
+            sensors: [sensorId]
+        )
+        request.httpBody = try JSONEncoder().encode(sampleRequest)
         
-        // Log request for debugging
-        logger.debug("Samples Request URL: \(url.absoluteString)")
-        logger.debug("Samples Request Headers: \(request.allHTTPHeaderFields ?? [:])")
-        if let requestString = String(data: request.httpBody ?? Data(), encoding: .utf8) {
-            logger.debug("Samples Request Body: \(requestString)")
+        // Log request details
+        logger.debug("Samples Request - URL: \(url.absoluteString)")
+        logger.debug("Samples Request - Headers: \(request.allHTTPHeaderFields ?? [:])")
+        if let bodyString = String(data: request.httpBody ?? Data(), encoding: .utf8) {
+            logger.debug("Samples Request - Body: \(bodyString)")
         }
         
         let (data, response) = try await URLSession.shared.data(for: request)
         
-        // Log response for debugging
+        // Log raw response for debugging
         if let responseString = String(data: data, encoding: .utf8) {
-            logger.debug("Samples Response: \(responseString)")
+            logger.debug("Samples Raw Response: \(responseString)")
         }
         
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw SensorPushError.invalidResponse
+            logger.error("Invalid response type")
+            throw SensorPushError.invalidResponse(statusCode: 0, message: "Invalid response type")
         }
         
         logger.debug("Samples Response Status Code: \(httpResponse.statusCode)")
         
         guard httpResponse.statusCode == 200 else {
             if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
-                throw SensorPushError.authenticationFailed(message: errorResponse.message)
+                logger.error("API error: \(errorResponse.message)")
+                throw SensorPushError.invalidResponse(statusCode: httpResponse.statusCode, message: errorResponse.message)
             }
-            throw SensorPushError.authenticationFailed(message: "Failed to fetch samples with status \(httpResponse.statusCode)")
+            throw SensorPushError.invalidResponse(statusCode: httpResponse.statusCode, message: nil)
         }
         
-        let decoder = JSONDecoder()
-        let sampleResponse = try decoder.decode(SampleResponse.self, from: data)
-        
-        // Convert to array of samples - take first sensor's samples
-        return sampleResponse.sensors.values.first ?? []
-    }
-    
-    // MARK: - Helper Methods
-    private func checkRateLimit() async throws {
-        if let lastRequest = lastRequestTime,
-           Date().timeIntervalSince(lastRequest) < minimumRequestInterval {
-            // Instead of throwing error, just wait
-            let waitTime = minimumRequestInterval - Date().timeIntervalSince(lastRequest)
-            try await Task.sleep(nanoseconds: UInt64(waitTime * 1_000_000_000))
+        do {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            
+            let sampleResponse = try decoder.decode(SampleResponse.self, from: data)
+            logger.debug("Successfully decoded response with last time: \(sampleResponse.last_time)")
+            
+            guard let samples = sampleResponse.sensors[sensorId] else {
+                logger.error("No samples found for sensor ID: \(sensorId)")
+                return []
+            }
+            
+            logger.debug("Returning \(samples.count) samples for sensor")
+            return samples
+        } catch {
+            logger.error("Failed to decode samples response: \(error)")
+            if let dataString = String(data: data, encoding: .utf8) {
+                logger.debug("Failed to decode data: \(dataString)")
+            }
+            throw SensorPushError.decodingError("Failed to decode samples response: \(error.localizedDescription)")
         }
-        lastRequestTime = Date()
     }
     
-    // Add method to get a specific sensor
-    func getSensor(id: String) async throws -> SensorPushDevice? {
-        let sensors = try await getSensors()
-        return sensors.first { $0.id == id }
+    func getSensors() async throws -> [SensorPushDevice] {
+        let token = try await getValidToken()
+        
+        let url = URL(string: "\(baseURL)/devices/sensors")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(token, forHTTPHeaderField: "Authorization")
+        
+        let emptyBody = try JSONEncoder().encode(EmptyRequest())
+        request.httpBody = emptyBody
+        
+        logger.debug("Requesting sensors list")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SensorPushError.invalidResponse(statusCode: 0, message: "Invalid response type")
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
+                throw SensorPushError.invalidResponse(statusCode: httpResponse.statusCode, message: errorResponse.message)
+            }
+            throw SensorPushError.invalidResponse(statusCode: httpResponse.statusCode, message: nil)
+        }
+        
+        let sensorDict = try JSONDecoder().decode([String: SensorPushDevice].self, from: data)
+        return sensorDict.map { id, device in
+            var sensor = device
+            sensor.id = id
+            return sensor
+        }
+    }
+    
+    // Add to SensorPushService class
+    func signOut() {
+        // Clear all tokens
+        accessToken = nil
+        authToken = nil
+        tokenExpiry = nil
+        
+        // Clear authentication state
+        defaults.removeObject(forKey: accessTokenKey)
+        defaults.removeObject(forKey: authTokenKey)
+        defaults.removeObject(forKey: tokenExpiryKey)
+        defaults.set(false, forKey: "sensorPushAuthenticated")
+        
+        // Force save changes
+        defaults.synchronize()
+        
+        logger.debug("User signed out, all tokens cleared")
     }
 }
 
 // MARK: - Models
-struct EmptyRequest: Encodable {
-    // Empty struct for encoding empty request bodies
+struct AuthResponse: Codable {
+    let authorization: String
+}
+
+struct TokenResponse: Codable {
+    let accessToken: String
+    
+    enum CodingKeys: String, CodingKey {
+        case accessToken = "accesstoken"
+    }
 }
 
 struct SensorPushDevice: Codable, Identifiable {
-    let id: String
+    var id: String = ""
     let name: String
     let deviceId: String
     let type: String
@@ -358,9 +301,8 @@ struct SensorPushDevice: Codable, Identifiable {
     let active: Bool
     
     enum CodingKeys: String, CodingKey {
-        case id
         case name
-        case deviceId = "device_id"
+        case deviceId = "deviceId"
         case type
         case batteryVoltage = "battery_voltage"
         case rssi
@@ -371,74 +313,69 @@ struct SensorPushDevice: Codable, Identifiable {
 struct SampleResponse: Codable {
     let last_time: String
     let sensors: [String: [SensorSample]]
-    let truncated: Bool
-    let status: String
-    let total_samples: Int
-    let total_sensors: Int
 }
 
 struct SensorSample: Codable {
-    let observed: String
-    let gateways: String
+    let observed: String  // API returns "observed" as ISO8601 string
     let temperature: Double
     let humidity: Double
     let dewpoint: Double
     let vpd: Double
-    let altitude: Double
+    let altitude: Int
+    let gateways: String?
     
-    var timestamp: Date {
-        ISO8601DateFormatter().date(from: observed) ?? Date()
+    enum CodingKeys: String, CodingKey {
+        case observed
+        case temperature
+        case humidity
+        case dewpoint
+        case vpd
+        case altitude
+        case gateways
     }
+    
+    // Convert observed string to Date
+    var time: Date {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: observed) ?? Date()
+    }
+}
+
+struct SampleRequest: Codable {
+    let limit: Int
+    let timestamp: String
+    let sensors: [String]
 }
 
 struct ErrorResponse: Codable {
     let message: String
-    let status: String?
+    let type: String?
+    let statusCode: String?
 }
 
-// Add these model structs for the sensors endpoint
-struct SensorResponse: Codable {
-    let sensors: [String: SensorPushDevice]
-}
+// Empty request for endpoints that don't need a body
+struct EmptyRequest: Encodable {}
 
-struct SensorDetails: Codable {
-    let name: String
-    let id: String
-    let deviceId: String
-    let type: String
-    let batteryVoltage: Double
-    let rssi: Int
-    let active: Bool
-    let calibration: CalibrationData
-    let alerts: AlertSettings
-    let address: String
+enum SensorPushError: LocalizedError {
+    case invalidToken
+    case invalidResponse(statusCode: Int, message: String?)
+    case authenticationFailed(message: String)
+    case decodingError(String)
+    case networkError(Error)
     
-    enum CodingKeys: String, CodingKey {
-        case name
-        case id
-        case deviceId = "deviceId"
-        case type
-        case batteryVoltage = "battery_voltage"
-        case rssi
-        case active
-        case calibration
-        case alerts
-        case address
+    var errorDescription: String? {
+        switch self {
+        case .invalidToken:
+            return "No valid access token available"
+        case .invalidResponse(let statusCode, let message):
+            return "Invalid response (Status \(statusCode)): \(message ?? "No message")"
+        case .authenticationFailed(let message):
+            return "Authentication failed: \(message)"
+        case .decodingError(let message):
+            return "Failed to decode response: \(message)"
+        case .networkError(let error):
+            return "Network error: \(error.localizedDescription)"
+        }
     }
 }
-
-struct CalibrationData: Codable {
-    let humidity: Double
-    let temperature: Double
-}
-
-struct AlertSettings: Codable {
-    let temperature: AlertThreshold
-    let humidity: AlertThreshold
-}
-
-struct AlertThreshold: Codable {
-    let enabled: Bool
-    let max: Double
-    let min: Double
-} 

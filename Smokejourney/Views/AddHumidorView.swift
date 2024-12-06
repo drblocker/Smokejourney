@@ -2,34 +2,40 @@ import SwiftUI
 import SwiftData
 
 struct AddHumidorView: View {
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @StateObject private var sensorViewModel = HumidorEnvironmentViewModel()
     
     @State private var name = ""
-    @State private var capacityString = ""
+    @State private var capacity = 25
     @State private var location = ""
-    @State private var showAlert = false
-    @State private var alertMessage = ""
-    
-    private var isValidCapacity: Bool {
-        guard let capacity = Int(capacityString) else { return false }
-        return capacity >= 1 && capacity <= 1000
-    }
+    @State private var selectedSensorId: String?
+    @State private var showSensorSelection = false
     
     var body: some View {
         NavigationStack {
             Form {
-                Section {
+                Section("Details") {
                     TextField("Name", text: $name)
-                    TextField("Capacity", text: $capacityString)
-                        .keyboardType(.numberPad)
-                    TextField("Location (Optional)", text: $location)
+                    Stepper("Capacity: \(capacity)", value: $capacity, in: 1...1000)
+                    TextField("Location", text: $location)
                 }
                 
-                Section {
-                    Text("Enter a number between 1 and 1000")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                Section("Environment Sensor") {
+                    if let sensorId = selectedSensorId,
+                       let sensor = sensorViewModel.sensors.first(where: { $0.id == sensorId }) {
+                        HStack {
+                            Text(sensor.name)
+                            Spacer()
+                            Button("Change") {
+                                showSensorSelection = true
+                            }
+                        }
+                    } else {
+                        Button("Select Sensor") {
+                            showSensorSelection = true
+                        }
+                    }
                 }
             }
             .navigationTitle("Add Humidor")
@@ -42,42 +48,23 @@ struct AddHumidorView: View {
                 }
                 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        if validateAndSave() {
-                            dismiss()
-                        }
+                    Button("Add") {
+                        let humidor = Humidor(name: name, capacity: capacity, location: location)
+                        humidor.sensorId = selectedSensorId
+                        modelContext.insert(humidor)
+                        dismiss()
                     }
-                    .disabled(name.isEmpty || !isValidCapacity)
+                    .disabled(name.isEmpty)
                 }
             }
-            .alert("Invalid Input", isPresented: $showAlert) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text(alertMessage)
+            .sheet(isPresented: $showSensorSelection) {
+                NavigationStack {
+                    SensorSelectionView(selectedSensorId: $selectedSensorId)
+                }
+            }
+            .task {
+                await sensorViewModel.fetchSensors()
             }
         }
-    }
-    
-    private func validateAndSave() -> Bool {
-        guard let capacityValue = Int(capacityString) else {
-            alertMessage = "Please enter a valid number for capacity"
-            showAlert = true
-            return false
-        }
-        
-        guard capacityValue >= 1 && capacityValue <= 1000 else {
-            alertMessage = "Capacity must be between 1 and 1000"
-            showAlert = true
-            return false
-        }
-        
-        let humidor = Humidor(
-            name: name,
-            capacity: capacityValue,
-            location: location.isEmpty ? nil : location
-        )
-        
-        modelContext.insert(humidor)
-        return true
     }
 } 

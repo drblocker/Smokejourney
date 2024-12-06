@@ -8,16 +8,16 @@ struct EnvironmentalDataView: View {
             // Temperature Card
             EnvironmentCardView(
                 title: "Temperature",
-                value: "\(viewModel.temperature?.formatted(.number.precision(.fractionLength(1))) ?? "--")°F",
-                status: viewModel.temperatureStatus,
+                value: viewModel.temperature.map { String(format: "%.1f°F", $0) } ?? "--°F",
+                status: viewModel.temperatureStatus ?? .normal,
                 icon: "thermometer"
             )
             
             // Humidity Card
             EnvironmentCardView(
                 title: "Humidity",
-                value: "\(viewModel.humidity?.formatted(.number.precision(.fractionLength(1))) ?? "--%")%",
-                status: viewModel.humidityStatus,
+                value: viewModel.humidity.map { String(format: "%.1f%%", $0) } ?? "--%",
+                status: viewModel.humidityStatus ?? .normal,
                 icon: "humidity"
             )
             

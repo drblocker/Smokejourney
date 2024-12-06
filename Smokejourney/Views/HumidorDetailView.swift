@@ -14,6 +14,7 @@ struct HumidorDetailView: View {
     @State private var showEditHumidor = false
     @State private var showDeleteAlert = false
     @State private var showAddSensor = false
+    @State private var showSensorSelection = false
     
     private let logger = Logger(subsystem: "com.smokejourney", category: "HumidorDetailView")
     
@@ -114,16 +115,52 @@ struct HumidorDetailView: View {
                 HumidorStatusView(humidor: humidor)
             }
             
+            if let sensorId = humidor.sensorId {
+                Section {
+                    if viewModel.isLoading {
+                        HStack {
+                            Spacer()
+                            ProgressView()
+                            Spacer()
+                        }
+                    } else {
+                        HStack {
+                            if let temp = viewModel.temperature {
+                                Label(String(format: "%.1f°F", temp), systemImage: "thermometer")
+                                    .foregroundColor(viewModel.temperatureStatus.color)
+                            } else {
+                                Label("--°F", systemImage: "thermometer")
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            if let humidity = viewModel.humidity {
+                                Label(String(format: "%.1f%%", humidity), systemImage: "humidity")
+                                    .foregroundColor(viewModel.humidityStatus.color)
+                            } else {
+                                Label("--%", systemImage: "humidity")
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
+                        if let error = viewModel.error {
+                            Text(error)
+                                .foregroundColor(.red)
+                                .font(.caption)
+                        }
+                    }
+                } header: {
+                    Text("Environment")
+                }
+            }
+            
             Section {
                 cigarContent()
             } header: {
                 if !filteredCigars.isEmpty {
                     Text("Cigars (\(filteredCigars.count))")
                 }
-            }
-            
-            Section("Sensors") {
-                sensorContent()
             }
         }
         .navigationTitle(humidor.effectiveName)
@@ -161,15 +198,35 @@ struct HumidorDetailView: View {
                 SensorPushAuthView()
             }
         }
+        .sheet(isPresented: $showSensorSelection) {
+            NavigationStack {
+                SensorSelectionView(selectedSensorId: $humidor.sensorId)
+            }
+        }
         .alert("Delete Humidor", isPresented: $showDeleteAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Delete", role: .destructive, action: deleteHumidor)
         } message: {
             Text("Are you sure you want to delete this humidor? This action cannot be undone.")
         }
+        .onChange(of: humidor.sensorId) { oldValue, newValue in
+            if let sensorId = newValue {
+                Task {
+                    await viewModel.fetchLatestSample(for: sensorId)
+                }
+            }
+        }
         .task {
-            // Fetch sensors when view appears
             await viewModel.fetchSensors()
+            if let sensorId = humidor.sensorId {
+                await viewModel.fetchLatestSample(for: sensorId)
+                await viewModel.loadHistoricalData(sensorId: sensorId)
+            }
+        }
+        .refreshable {
+            if let sensorId = humidor.sensorId {
+                await viewModel.fetchLatestSample(for: sensorId)
+            }
         }
     }
     

@@ -4,12 +4,14 @@ import SwiftData
 struct EditHumidorView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var humidor: Humidor
+    @StateObject private var sensorViewModel = HumidorEnvironmentViewModel()
     
     @State private var name: String
     @State private var capacityString: String
     @State private var location: String
     @State private var showAlert = false
     @State private var alertMessage = ""
+    @State private var showSensorSelection = false
     
     // Computed property to handle capacity validation
     private var capacity: Int {
@@ -33,23 +35,26 @@ struct EditHumidorView: View {
             Form {
                 Section("Humidor Details") {
                     TextField("Name", text: $name)
-                    
                     TextField("Capacity", text: $capacityString)
                         .keyboardType(.numberPad)
-                    
-                    TextField("Location (Optional)", text: $location)
+                    TextField("Location", text: $location)
                 }
                 
-                Section("Capacity Guidelines") {
-                    Text("Enter a number between \(humidor.effectiveCigars.count) and 1000")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                Section("Current Status") {
-                    Text("Current cigars: \(humidor.effectiveCigars.count)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                Section("Environment Sensor") {
+                    if let sensorId = humidor.sensorId,
+                       let sensor = sensorViewModel.sensors.first(where: { $0.id == sensorId }) {
+                        HStack {
+                            Text(sensor.name)
+                            Spacer()
+                            Button("Change") {
+                                showSensorSelection = true
+                            }
+                        }
+                    } else {
+                        Button("Select Sensor") {
+                            showSensorSelection = true
+                        }
+                    }
                 }
             }
             .navigationTitle("Edit Humidor")
@@ -67,13 +72,20 @@ struct EditHumidorView: View {
                             dismiss()
                         }
                     }
-                    .disabled(name.isEmpty || !isValidCapacity)
                 }
             }
             .alert("Invalid Input", isPresented: $showAlert) {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(alertMessage)
+            }
+            .sheet(isPresented: $showSensorSelection) {
+                NavigationStack {
+                    SensorSelectionView(selectedSensorId: $humidor.sensorId)
+                }
+            }
+            .task {
+                await sensorViewModel.fetchSensors()
             }
         }
     }
@@ -86,13 +98,13 @@ struct EditHumidorView: View {
         }
         
         guard capacityValue >= humidor.effectiveCigars.count else {
-            alertMessage = "Capacity cannot be less than current number of cigars (\(humidor.effectiveCigars.count))"
+            alertMessage = "Capacity cannot be less than current number of cigars"
             showAlert = true
             return false
         }
         
         guard capacityValue <= 1000 else {
-            alertMessage = "Capacity must be between \(humidor.effectiveCigars.count) and 1000"
+            alertMessage = "Capacity must be 1000 or less"
             showAlert = true
             return false
         }
@@ -100,6 +112,7 @@ struct EditHumidorView: View {
         humidor.name = name
         humidor.capacity = capacityValue
         humidor.location = location.isEmpty ? nil : location
+        
         return true
     }
 } 

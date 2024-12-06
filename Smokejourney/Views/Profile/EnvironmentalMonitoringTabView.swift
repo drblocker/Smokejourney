@@ -47,8 +47,9 @@ struct EnvironmentalMonitoringTabView: View {
             }
             .navigationTitle("Environment")
             .refreshable {
-                Task {
-                    await viewModel.fetchLatestData()
+                // Refresh all connected sensors
+                for humidor in humidors where humidor.sensorId != nil {
+                    await viewModel.fetchLatestSample(for: humidor.sensorId!)
                 }
             }
         }
@@ -102,7 +103,7 @@ struct HumidorEnvironmentCard: View {
 struct EnvironmentReadingView: View {
     let title: String
     let value: String
-    let status: EnvironmentalMonitoring.Status
+    let status: EnvironmentStatus
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {

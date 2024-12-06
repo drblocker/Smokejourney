@@ -13,6 +13,7 @@ struct EnvironmentReportView: View {
                     Spacer()
                     Text(viewModel.dailyAverageTemperature)
                 }
+                
                 HStack {
                     Text("Average Humidity")
                     Spacer()
@@ -21,20 +22,41 @@ struct EnvironmentReportView: View {
             }
             
             Section("Historical Data") {
-                Chart(viewModel.historicalData, id: \.timestamp) { data in
-                    LineMark(
-                        x: .value("Time", data.timestamp),
-                        y: .value("Temperature", data.temperature)
-                    )
-                    .foregroundStyle(.red)
+                VStack {
+                    Chart(viewModel.historicalData, id: \.timestamp) { data in
+                        LineMark(
+                            x: .value("Time", data.timestamp),
+                            y: .value("Temperature", data.temperature)
+                        )
+                        .foregroundStyle(.red)
+                        
+                        LineMark(
+                            x: .value("Time", data.timestamp),
+                            y: .value("Humidity", data.humidity)
+                        )
+                        .foregroundStyle(.blue)
+                    }
+                    .frame(height: 200)
                     
-                    LineMark(
-                        x: .value("Time", data.timestamp),
-                        y: .value("Humidity", data.humidity)
-                    )
-                    .foregroundStyle(.blue)
+                    HStack(spacing: 16) {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(.red)
+                                .frame(width: 8, height: 8)
+                            Text("Temperature")
+                                .font(.caption)
+                        }
+                        
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(.blue)
+                                .frame(width: 8, height: 8)
+                            Text("Humidity")
+                                .font(.caption)
+                        }
+                    }
+                    .padding(.top, 4)
                 }
-                .frame(height: 200)
             }
             
             Section("Alerts") {
@@ -54,7 +76,16 @@ struct EnvironmentReportView: View {
         }
         .navigationTitle("Environment Report")
         .task {
-            await viewModel.fetchLatestData()
+            if let sensorId = humidor.sensorId {
+                await viewModel.fetchLatestSample(for: sensorId)
+                await viewModel.loadHistoricalData(sensorId: sensorId)
+            }
         }
+    }
+}
+
+#Preview {
+    NavigationStack {
+        EnvironmentReportView(humidor: Humidor())
     }
 } 

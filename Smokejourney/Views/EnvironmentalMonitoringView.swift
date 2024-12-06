@@ -4,7 +4,8 @@ import os.log
 
 struct EnvironmentalMonitoringView: View {
     @StateObject private var viewModel = HumidorEnvironmentViewModel()
-    let humidor: Humidor
+    @Bindable var humidor: Humidor
+    @State private var showSensorSelection = false
     
     var body: some View {
         VStack {
@@ -19,10 +20,15 @@ struct EnvironmentalMonitoringView: View {
                 } description: {
                     Text("Add a sensor to monitor environment")
                 } actions: {
-                    NavigationLink(destination: SensorSelectionView(humidor: humidor)) {
+                    Button(action: { showSensorSelection = true }) {
                         Text("Add Sensor")
                     }
                 }
+            }
+        }
+        .sheet(isPresented: $showSensorSelection) {
+            NavigationStack {
+                SensorSelectionView(selectedSensorId: $humidor.sensorId)
             }
         }
         .task {

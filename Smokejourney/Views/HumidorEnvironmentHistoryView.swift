@@ -103,12 +103,16 @@ struct HumidorEnvironmentHistoryView: View {
         }
         .navigationTitle("Environment History")
         .onChange(of: selectedTimeRange) {
-            Task {
-                await viewModel.loadHistoricalData(for: selectedTimeRange)
+            if let sensorId = humidor.sensorId {
+                Task {
+                    await viewModel.loadHistoricalData(for: selectedTimeRange, sensorId: sensorId)
+                }
             }
         }
         .task {
-            await viewModel.loadHistoricalData(for: selectedTimeRange)
+            if let sensorId = humidor.sensorId {
+                await viewModel.loadHistoricalData(for: selectedTimeRange, sensorId: sensorId)
+            }
         }
     }
 }

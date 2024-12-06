@@ -5,76 +5,36 @@ import os.log
 @MainActor
 class HumidorEnvironmentViewModel: ObservableObject {
     @Published var historicalData: [(timestamp: Date, temperature: Double, humidity: Double)] = []
-    @Published var temperatureRange: String = "N/A"
-    @Published var humidityRange: String = "N/A"
-    @Published var dailyAverageTemperature: String = "N/A"
-    @Published var dailyAverageHumidity: String = "N/A"
-    @Published var environmentalAlerts: [EnvironmentalMonitoring.Alert] = []
     @Published var isLoading = false
     @Published var error: String?
+    @Published var sensors: [SensorPushDevice] = []
+    @Published var temperature: Double?
+    @Published var humidity: Double?
+    @Published var lastUpdated: Date?
+    @Published var temperatureStatus: EnvironmentStatus = .normal
+    @Published var humidityStatus: EnvironmentStatus = .normal
     
     // Stability metrics (0.0 to 1.0)
     @Published var temperatureStability: Double = 0.0
     @Published var humidityStability: Double = 0.0
     
-    @Published var temperature: Double?
-    @Published var humidity: Double?
-    @Published var temperatureStatus: EnvironmentalMonitoring.Status = .normal
-    @Published var humidityStatus: EnvironmentalMonitoring.Status = .normal
-    @Published var lastUpdated: Date?
-    @Published var sensors: [SensorPushDevice] = []
+    @Published var environmentalAlerts: [EnvironmentalMonitoring.Alert] = []
     
-    private let sensorPushService = SensorPushService.shared
+    // Add range and average properties
+    @Published var temperatureRange: String = "N/A"
+    @Published var humidityRange: String = "N/A"
+    @Published var dailyAverageTemperature: String = "N/A"
+    @Published var dailyAverageHumidity: String = "N/A"
+    
+    @Published var isAuthenticated = UserDefaults.standard.bool(forKey: "sensorPushAuthenticated")
+    @Published var showAuthenticationSheet = false
+    
     private let logger = Logger(subsystem: "com.jason.smokejourney", category: "HumidorEnvironment")
+    private let sensorPushService = SensorPushService.shared
+    private let keychain = KeychainWrapper.standard
     
-    func loadHistoricalData(for timeRange: TimeRange) async {
-        isLoading = true
-        error = nil
-        
-        do {
-            let samples = try await sensorPushService.getSamples(limit: timeRange.limit)
-            
-            // Process and store the data
-            historicalData = samples.map { sample in
-                (timestamp: sample.timestamp,
-                 temperature: sample.temperature,
-                 humidity: sample.humidity)
-            }
-            
-            // Calculate statistics
-            calculateStatistics()
-            calculateStabilityMetrics()
-            checkForAlerts()
-            
-        } catch {
-            self.error = "Failed to load historical data: \(error.localizedDescription)"
-            logger.error("Failed to load historical data: \(error.localizedDescription)")
-        }
-        
-        isLoading = false
-    }
-    
-    private func calculateStatistics() {
-        guard !historicalData.isEmpty else { return }
-        
-        // Temperature statistics
-        let temperatures = historicalData.map { $0.temperature }
-        let minTemp = temperatures.min() ?? 0
-        let maxTemp = temperatures.max() ?? 0
-        let avgTemp = temperatures.reduce(0, +) / Double(temperatures.count)
-        
-        // Humidity statistics
-        let humidities = historicalData.map { $0.humidity }
-        let minHumidity = humidities.min() ?? 0
-        let maxHumidity = humidities.max() ?? 0
-        let avgHumidity = humidities.reduce(0, +) / Double(humidities.count)
-        
-        // Update published properties
-        temperatureRange = String(format: "%.1f°F - %.1f°F", minTemp, maxTemp)
-        humidityRange = String(format: "%.1f%% - %.1f%%", minHumidity, maxHumidity)
-        dailyAverageTemperature = String(format: "%.1f°F", avgTemp)
-        dailyAverageHumidity = String(format: "%.1f%%", avgHumidity)
-    }
+    private let emailKey = "sensorPushEmail"
+    private let passwordKey = "sensorPushPassword"
     
     private func calculateStabilityMetrics() {
         guard !historicalData.isEmpty else { return }
@@ -97,89 +57,201 @@ class HumidorEnvironmentViewModel: ObservableObject {
     }
     
     private func checkForAlerts() {
-        guard let latestData = historicalData.first else { return }
-        
-        let tempLowAlert = UserDefaults.standard.double(forKey: "tempLowAlert")
-        let tempHighAlert = UserDefaults.standard.double(forKey: "tempHighAlert")
-        let humidityLowAlert = UserDefaults.standard.double(forKey: "humidityLowAlert")
-        let humidityHighAlert = UserDefaults.standard.double(forKey: "humidityHighAlert")
+        var newAlerts: [EnvironmentalMonitoring.Alert] = []
         
         // Check temperature
-        if latestData.temperature < tempLowAlert {
-            addAlert(.temperatureLow, message: "Temperature below minimum threshold")
-        } else if latestData.temperature > tempHighAlert {
-            addAlert(.temperatureHigh, message: "Temperature above maximum threshold")
+        if let temp = temperature {
+            let tempLowAlert = UserDefaults.standard.double(forKey: "tempLowAlert")
+            let tempHighAlert = UserDefaults.standard.double(forKey: "tempHighAlert")
+            
+            if temp < tempLowAlert {
+                newAlerts.append(EnvironmentalMonitoring.Alert(
+                    type: .temperatureLow,
+                    message: String(format: "Temperature is too low: %.1f°F", temp),
+                    timestamp: Date()
+                ))
+            } else if temp > tempHighAlert {
+                newAlerts.append(EnvironmentalMonitoring.Alert(
+                    type: .temperatureHigh,
+                    message: String(format: "Temperature is too high: %.1f°F", temp),
+                    timestamp: Date()
+                ))
+            }
         }
         
         // Check humidity
-        if latestData.humidity < humidityLowAlert {
-            addAlert(.humidityLow, message: "Humidity below minimum threshold")
-        } else if latestData.humidity > humidityHighAlert {
-            addAlert(.humidityHigh, message: "Humidity above maximum threshold")
+        if let hum = humidity {
+            let humidityLowAlert = UserDefaults.standard.double(forKey: "humidityLowAlert")
+            let humidityHighAlert = UserDefaults.standard.double(forKey: "humidityHighAlert")
+            
+            if hum < humidityLowAlert {
+                newAlerts.append(EnvironmentalMonitoring.Alert(
+                    type: .humidityLow,
+                    message: String(format: "Humidity is too low: %.1f%%", hum),
+                    timestamp: Date()
+                ))
+            } else if hum > humidityHighAlert {
+                newAlerts.append(EnvironmentalMonitoring.Alert(
+                    type: .humidityHigh,
+                    message: String(format: "Humidity is too high: %.1f%%", hum),
+                    timestamp: Date()
+                ))
+            }
+        }
+        
+        // Update alerts
+        if !newAlerts.isEmpty {
+            environmentalAlerts = newAlerts + environmentalAlerts
+            // Keep only the last 10 alerts
+            if environmentalAlerts.count > 10 {
+                environmentalAlerts = Array(environmentalAlerts.prefix(10))
+            }
         }
     }
     
-    private func addAlert(_ type: EnvironmentalMonitoring.AlertType, message: String) {
-        let alert = EnvironmentalMonitoring.Alert(
-            type: type,
-            message: message,
-            timestamp: Date()
-        )
-        environmentalAlerts.append(alert)
+    func ensureAuthenticated() async throws {
+        if !isAuthenticated {
+            logger.debug("Not authenticated, checking for stored credentials")
+            
+            // Try to get stored credentials
+            guard let email = keychain.string(forKey: emailKey),
+                  let password = keychain.string(forKey: passwordKey) else {
+                logger.debug("No stored credentials found")
+                await MainActor.run {
+                    showAuthenticationSheet = true
+                }
+                throw SensorPushError.authenticationFailed(message: "Authentication required")
+            }
+            
+            logger.debug("Found stored credentials, attempting to authenticate")
+            try await sensorPushService.authenticate(email: email, password: password)
+            
+            await MainActor.run {
+                isAuthenticated = true
+            }
+        }
     }
     
-    func fetchLatestData() async {
-        isLoading = true
+    func authenticate(email: String, password: String) async throws {
         do {
-            let samples = try await sensorPushService.getSamples(limit: 1)
-            if let latest = samples.first {
-                await MainActor.run {
-                    self.temperature = latest.temperature
-                    self.humidity = latest.humidity
-                    self.lastUpdated = latest.timestamp
-                    updateEnvironmentStatus()
-                }
+            try await sensorPushService.authenticate(email: email, password: password)
+            
+            // Store credentials securely
+            keychain.set(email, forKey: emailKey)
+            keychain.set(password, forKey: passwordKey)
+            
+            await MainActor.run {
+                isAuthenticated = true
+                showAuthenticationSheet = false
             }
         } catch {
-            self.error = error.localizedDescription
+            logger.error("Authentication failed: \(error.localizedDescription)")
+            throw error
         }
-        isLoading = false
+    }
+    
+    func signOut() {
+        sensorPushService.signOut()
+        keychain.removeObject(forKey: emailKey)
+        keychain.removeObject(forKey: passwordKey)
+        isAuthenticated = false
     }
     
     func fetchLatestSample(for sensorId: String) async {
         do {
-            let samples = try await sensorPushService.getSamples(limit: 1)
-            if let latest = samples.first {
+            try await ensureAuthenticated()
+            guard !isLoading else { return }
+            
+            logger.debug("Fetching latest sample for sensor: \(sensorId)")
+            isLoading = true
+            
+            do {
+                let samples = try await sensorPushService.getSamples(for: sensorId, limit: 1)
                 await MainActor.run {
-                    self.temperature = latest.temperature
-                    self.humidity = latest.humidity
-                    self.lastUpdated = latest.timestamp
-                    updateEnvironmentStatus()
+                    if let latest = samples.first {
+                        logger.debug("Received sample - Temperature: \(latest.temperature)°F, Humidity: \(latest.humidity)%")
+                        self.temperature = latest.temperature
+                        self.humidity = latest.humidity
+                        self.lastUpdated = latest.time
+                        updateEnvironmentStatus()
+                        checkForAlerts()
+                    } else {
+                        logger.error("No samples returned for sensor")
+                    }
+                    self.isLoading = false
                 }
+            } catch {
+                await MainActor.run {
+                    self.error = error.localizedDescription
+                    self.isLoading = false
+                }
+                logger.error("Failed to fetch sample: \(error.localizedDescription)")
             }
         } catch {
-            self.error = error.localizedDescription
+            logger.error("Authentication failed: \(error.localizedDescription)")
+            await MainActor.run {
+                self.error = error.localizedDescription
+                showAuthenticationSheet = true
+            }
         }
     }
     
     func fetchSensors() async {
+        guard !isLoading else { return }
+        
+        isLoading = true
         do {
             let fetchedSensors = try await sensorPushService.getSensors()
             await MainActor.run {
                 self.sensors = fetchedSensors
+                self.isLoading = false
             }
         } catch {
-            self.error = error.localizedDescription
+            await MainActor.run {
+                self.error = error.localizedDescription
+                self.isLoading = false
+            }
+            logger.error("Failed to fetch sensors: \(error.localizedDescription)")
+        }
+    }
+    
+    func loadHistoricalData(for timeRange: TimeRange = .day, sensorId: String) async {
+        guard !isLoading else { return }
+        
+        isLoading = true
+        do {
+            let samples = try await sensorPushService.getSamples(for: sensorId, limit: timeRange.limit)
+            await MainActor.run {
+                self.historicalData = samples.map { sample in
+                    (timestamp: sample.time,
+                     temperature: sample.temperature,
+                     humidity: sample.humidity)
+                }
+                calculateStabilityMetrics()
+                calculateStatistics()
+                updateEnvironmentStatus()
+                checkForAlerts()
+                self.isLoading = false
+            }
+        } catch {
+            await MainActor.run {
+                self.error = error.localizedDescription
+                self.isLoading = false
+            }
+            logger.error("Failed to load historical data: \(error.localizedDescription)")
         }
     }
     
     private func updateEnvironmentStatus() {
         // Update temperature status
         if let temp = temperature {
-            if temp < UserDefaults.standard.double(forKey: "tempLowAlert") {
+            let tempLowAlert = UserDefaults.standard.double(forKey: "tempLowAlert")
+            let tempHighAlert = UserDefaults.standard.double(forKey: "tempHighAlert")
+            
+            if temp < tempLowAlert || temp > tempHighAlert {
                 temperatureStatus = .critical
-            } else if temp > UserDefaults.standard.double(forKey: "tempHighAlert") {
-                temperatureStatus = .critical
+            } else if abs(temp - ((tempLowAlert + tempHighAlert) / 2)) > 3 {
+                temperatureStatus = .warning
             } else {
                 temperatureStatus = .normal
             }
@@ -187,13 +259,38 @@ class HumidorEnvironmentViewModel: ObservableObject {
         
         // Update humidity status
         if let hum = humidity {
-            if hum < UserDefaults.standard.double(forKey: "humidityLowAlert") {
+            let humidityLowAlert = UserDefaults.standard.double(forKey: "humidityLowAlert")
+            let humidityHighAlert = UserDefaults.standard.double(forKey: "humidityHighAlert")
+            
+            if hum < humidityLowAlert || hum > humidityHighAlert {
                 humidityStatus = .critical
-            } else if hum > UserDefaults.standard.double(forKey: "humidityHighAlert") {
-                humidityStatus = .critical
+            } else if abs(hum - ((humidityLowAlert + humidityHighAlert) / 2)) > 5 {
+                humidityStatus = .warning
             } else {
                 humidityStatus = .normal
             }
         }
+    }
+    
+    private func calculateStatistics() {
+        guard !historicalData.isEmpty else { return }
+        
+        // Temperature statistics
+        let temperatures = historicalData.map { $0.temperature }
+        let minTemp = temperatures.min() ?? 0
+        let maxTemp = temperatures.max() ?? 0
+        let avgTemp = temperatures.reduce(0, +) / Double(temperatures.count)
+        
+        // Humidity statistics
+        let humidities = historicalData.map { $0.humidity }
+        let minHumidity = humidities.min() ?? 0
+        let maxHumidity = humidities.max() ?? 0
+        let avgHumidity = humidities.reduce(0, +) / Double(humidities.count)
+        
+        // Update published properties
+        temperatureRange = String(format: "%.1f°F - %.1f°F", minTemp, maxTemp)
+        humidityRange = String(format: "%.1f%% - %.1f%%", minHumidity, maxHumidity)
+        dailyAverageTemperature = String(format: "%.1f°F", avgTemp)
+        dailyAverageHumidity = String(format: "%.1f%%", avgHumidity)
     }
 } 
