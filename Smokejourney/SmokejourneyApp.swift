@@ -9,17 +9,6 @@ import SwiftUI
 import SwiftData
 import Foundation
 
-// MARK: - Value Transformer Setup
-extension CutTypeValueTransformer {
-    static func registerIfNeeded() {
-        let name = CutTypeValueTransformer.transformerName
-        if !ValueTransformer.valueTransformerNames().contains(name) {
-            let transformer = CutTypeValueTransformer()
-            ValueTransformer.setValueTransformer(transformer, forName: name)
-        }
-    }
-}
-
 // MARK: - App
 @main
 struct SmokeJourneyApp: App {
@@ -29,8 +18,6 @@ struct SmokeJourneyApp: App {
     let container: ModelContainer
     
     init() {
-        CutTypeValueTransformer.registerIfNeeded()
-        
         // Create the model container
         do {
             container = try ModelContainer(

@@ -12,23 +12,7 @@ final class Review {
     var photosData: Data?
     var environment: String?
     var pairings: String?
-    
-    @Attribute(.transformable(by: CutTypeValueTransformer.self))
-    private var cutTypeRawValue: Int?
-    
-    var cutType: CutType {
-        get {
-            if let rawValue = cutTypeRawValue,
-               let type = CutType(rawValue: rawValue) {
-                return type
-            }
-            return .guillotine
-        }
-        set {
-            cutTypeRawValue = newValue.rawValue
-        }
-    }
-    
+    var cutType: String?
     var humidity: Double?
     
     // Ratings (1-5 scale)
@@ -50,7 +34,7 @@ final class Review {
     init(date: Date = Date()) {
         self.date = date
         self.isPrivate = false
-        self.cutTypeRawValue = CutType.guillotine.rawValue
+        self.cutType = "Guillotine"
     }
     
     // Computed Properties

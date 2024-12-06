@@ -14,6 +14,10 @@ final class Humidor {
     var cigars: [Cigar]?
     var sensorId: String?
     
+    @Relationship(deleteRule: .cascade) var sensors: [Sensor]?
+    var targetHumidity: Double?
+    var targetTemperature: Double?
+    
     init(name: String, capacity: Int, description: String? = nil, location: String? = nil) {
         self.name = name
         self.capacity = capacity

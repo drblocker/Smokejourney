@@ -6,103 +6,170 @@ struct HumidorDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Bindable var humidor: Humidor
+    @StateObject private var viewModel = HumidorEnvironmentViewModel()
     
     // State
     @State private var searchText = ""
     @State private var showAddCigar = false
     @State private var showEditHumidor = false
     @State private var showDeleteAlert = false
+    @State private var showAddSensor = false
     
     private let logger = Logger(subsystem: "com.smokejourney", category: "HumidorDetailView")
     
-    // MARK: - Computed Properties
+    // MARK: - Search Logic
+    private var cigars: [Cigar] {
+        humidor.cigars ?? []
+    }
+    
+    private func matches(_ cigar: Cigar, searchTerm: String) -> Bool {
+        let searchTerm = searchTerm.lowercased()
+        let matchesBrand = cigar.brand?.lowercased().contains(searchTerm) ?? false
+        let matchesName = cigar.name?.lowercased().contains(searchTerm) ?? false
+        return matchesBrand || matchesName
+    }
+    
     private var filteredCigars: [Cigar] {
-        let cigars = humidor.cigars ?? []
-        guard !searchText.isEmpty else { return cigars }
-        
-        return cigars.filter { cigar in
-            let searchTerms = searchText.lowercased()
-            return cigar.brand?.lowercased().contains(searchTerms) ?? false ||
-                   cigar.name?.lowercased().contains(searchTerms) ?? false
+        guard !searchText.isEmpty else {
+            return cigars
+        }
+        return cigars.filter { matches($0, searchTerm: searchText) }
+    }
+    
+    // MARK: - View Content Builders
+    @ViewBuilder
+    private func cigarContent() -> some View {
+        if filteredCigars.isEmpty {
+            emptyCigarView()
+        } else {
+            cigarList()
+        }
+    }
+    
+    @ViewBuilder
+    private func emptyCigarView() -> some View {
+        ContentUnavailableView {
+            Label("No Cigars", systemImage: "cabinet")
+        } description: {
+            Text(searchText.isEmpty ? 
+                "Add cigars to your humidor" : 
+                "No cigars match your search")
+        } actions: {
+            if searchText.isEmpty {
+                Button(action: { showAddCigar = true }) {
+                    Text("Add Cigar")
+                }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func cigarList() -> some View {
+        ForEach(filteredCigars) { cigar in
+            NavigationLink {
+                CigarDetailView(cigar: cigar)
+            } label: {
+                CigarRowView(cigar: cigar)
+            }
+        }
+        .onDelete(perform: deleteCigars)
+    }
+    
+    // MARK: - Sensor Content Builders
+    @ViewBuilder
+    private func sensorContent() -> some View {
+        if let sensorId = humidor.sensorId,
+           let sensor = viewModel.sensors.first(where: { $0.id == sensorId }) {
+            sensorList(sensor)
+        } else {
+            emptySensorView()
+        }
+        addSensorButton()
+    }
+    
+    @ViewBuilder
+    private func sensorList(_ sensor: SensorPushDevice) -> some View {
+        NavigationLink(destination: SensorDetailView(sensor: sensor)) {
+            SensorRowView(sensor: sensor)
+        }
+    }
+    
+    @ViewBuilder
+    private func emptySensorView() -> some View {
+        Text("No sensors added")
+            .foregroundStyle(.secondary)
+    }
+    
+    @ViewBuilder
+    private func addSensorButton() -> some View {
+        Button(action: { showAddSensor = true }) {
+            Label("Add Sensor", systemImage: "plus.circle")
         }
     }
     
     // MARK: - Body
     var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    HumidorStatusView(humidor: humidor)
+        List {
+            Section {
+                HumidorStatusView(humidor: humidor)
+            }
+            
+            Section {
+                cigarContent()
+            } header: {
+                if !filteredCigars.isEmpty {
+                    Text("Cigars (\(filteredCigars.count))")
+                }
+            }
+            
+            Section("Sensors") {
+                sensorContent()
+            }
+        }
+        .navigationTitle(humidor.effectiveName)
+        .searchable(text: $searchText, prompt: "Search cigars...")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            Menu {
+                Button(action: { showAddCigar = true }) {
+                    Label("Add Cigar", systemImage: "plus")
                 }
                 
-                Section {
-                    if filteredCigars.isEmpty {
-                        ContentUnavailableView {
-                            Label("No Cigars", systemImage: "cabinet")
-                        } description: {
-                            Text(searchText.isEmpty ? 
-                                "Add cigars to your humidor" : 
-                                "No cigars match your search")
-                        } actions: {
-                            if searchText.isEmpty {
-                                Button(action: { showAddCigar = true }) {
-                                    Text("Add Cigar")
-                                }
-                            }
-                        }
-                    } else {
-                        ForEach(filteredCigars) { cigar in
-                            NavigationLink {
-                                CigarDetailView(cigar: cigar)
-                            } label: {
-                                CigarRowView(cigar: cigar)
-                            }
-                        }
-                        .onDelete(perform: deleteCigars)
-                    }
-                } header: {
-                    if !filteredCigars.isEmpty {
-                        Text("Cigars (\(filteredCigars.count))")
-                    }
+                Button(action: { showEditHumidor = true }) {
+                    Label("Edit Humidor", systemImage: "pencil")
                 }
-            }
-            .navigationTitle(humidor.effectiveName)
-            .searchable(text: $searchText, prompt: "Search cigars...")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button(action: { showAddCigar = true }) {
-                            Label("Add Cigar", systemImage: "plus")
-                        }
-                        
-                        Button(action: { showEditHumidor = true }) {
-                            Label("Edit Humidor", systemImage: "pencil")
-                        }
-                        
-                        Button(role: .destructive, action: { showDeleteAlert = true }) {
-                            Label("Delete Humidor", systemImage: "trash")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
+                
+                Button(role: .destructive, action: { showDeleteAlert = true }) {
+                    Label("Delete Humidor", systemImage: "trash")
                 }
+            } label: {
+                Image(systemName: "ellipsis.circle")
             }
-            .sheet(isPresented: $showAddCigar) {
-                NavigationStack {
-                    AddCigarView(humidor: humidor)
-                }
+        }
+        .sheet(isPresented: $showAddCigar) {
+            NavigationStack {
+                AddCigarView(humidor: humidor)
             }
-            .sheet(isPresented: $showEditHumidor) {
-                NavigationStack {
-                    EditHumidorView(humidor: humidor)
-                }
+        }
+        .sheet(isPresented: $showEditHumidor) {
+            NavigationStack {
+                EditHumidorView(humidor: humidor)
             }
-            .alert("Delete Humidor", isPresented: $showDeleteAlert) {
-                Button("Cancel", role: .cancel) { }
-                Button("Delete", role: .destructive, action: deleteHumidor)
-            } message: {
-                Text("Are you sure you want to delete this humidor? This action cannot be undone.")
+        }
+        .sheet(isPresented: $showAddSensor) {
+            NavigationStack {
+                SensorPushAuthView()
             }
+        }
+        .alert("Delete Humidor", isPresented: $showDeleteAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive, action: deleteHumidor)
+        } message: {
+            Text("Are you sure you want to delete this humidor? This action cannot be undone.")
+        }
+        .task {
+            // Fetch sensors when view appears
+            await viewModel.fetchSensors()
         }
     }
     

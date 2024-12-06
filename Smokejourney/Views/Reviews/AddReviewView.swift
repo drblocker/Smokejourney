@@ -108,7 +108,7 @@ struct AddReviewView: View {
     @State private var showValidationAlert = false
     @State private var validationMessage = ""
     
-    @State private var cutType: CutType = .guillotine
+    @State private var cutType = ""
     @State private var humidity: String = ""  // Using string for input validation
     
     // Add computed property for validation
@@ -144,11 +144,7 @@ struct AddReviewView: View {
                             .foregroundColor(.secondary)
                     }
                     
-                    Picker("Cut Type", selection: $cutType) {
-                        ForEach([CutType.guillotine, .vCut, .punch, .straight, .natural], id: \.self) { type in
-                            Text(type.stringValue).tag(type)
-                        }
-                    }
+                    TextField("Cut Type", text: $cutType, prompt: Text("How did you cut this cigar?"))
                     
                     HStack {
                         Text("Humidity")
@@ -388,6 +384,7 @@ struct AddReviewView: View {
         review.isPrivate = isPrivate
         review.environment = environment.isEmpty ? nil : environment
         review.pairings = pairings.isEmpty ? nil : pairings
+        review.cutType = cutType.isEmpty ? "Guillotine" : cutType
         review.notes = notes.isEmpty ? nil : notes
         
         // Set all the ratings

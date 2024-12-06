@@ -22,7 +22,7 @@ class HumidorEnvironmentViewModel: ObservableObject {
     @Published var temperatureStatus: EnvironmentalMonitoring.Status = .normal
     @Published var humidityStatus: EnvironmentalMonitoring.Status = .normal
     @Published var lastUpdated: Date?
-    @Published var sensors: [Sensor] = []
+    @Published var sensors: [SensorPushDevice] = []
     
     private let sensorPushService = SensorPushService.shared
     private let logger = Logger(subsystem: "com.jason.smokejourney", category: "HumidorEnvironment")

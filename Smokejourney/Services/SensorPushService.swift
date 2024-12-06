@@ -214,7 +214,7 @@ actor SensorPushService {
     }
     
     // MARK: - API Requests
-    func getSensors() async throws -> [Sensor] {
+    func getSensors() async throws -> [SensorPushDevice] {
         guard let token = accessToken else {
             throw SensorPushError.invalidToken
         }
@@ -256,11 +256,11 @@ actor SensorPushService {
         }
         
         let decoder = JSONDecoder()
-        let sensorResponse = try decoder.decode([String: SensorDetails].self, from: data)
+        let sensorResponse = try decoder.decode([String: SensorPushDevice].self, from: data)
         
         // Convert the dictionary response to our Sensor array
         return sensorResponse.map { (id, details) in
-            Sensor(
+            SensorPushDevice(
                 id: id,
                 name: details.name,
                 deviceId: details.deviceId,
@@ -337,7 +337,7 @@ actor SensorPushService {
     }
     
     // Add method to get a specific sensor
-    func getSensor(id: String) async throws -> Sensor? {
+    func getSensor(id: String) async throws -> SensorPushDevice? {
         let sensors = try await getSensors()
         return sensors.first { $0.id == id }
     }
@@ -348,7 +348,7 @@ struct EmptyRequest: Encodable {
     // Empty struct for encoding empty request bodies
 }
 
-struct Sensor: Codable, Identifiable {
+struct SensorPushDevice: Codable, Identifiable {
     let id: String
     let name: String
     let deviceId: String
@@ -398,7 +398,7 @@ struct ErrorResponse: Codable {
 
 // Add these model structs for the sensors endpoint
 struct SensorResponse: Codable {
-    let sensors: [String: SensorDetails]
+    let sensors: [String: SensorPushDevice]
 }
 
 struct SensorDetails: Codable {

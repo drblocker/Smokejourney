@@ -2,7 +2,7 @@ import SwiftUI
 import Charts
 
 struct SensorDetailView: View {
-    let sensor: Sensor
+    let sensor: SensorPushDevice
     @StateObject private var viewModel = HumidorEnvironmentViewModel()
     @Environment(\.dismiss) private var dismiss
     
@@ -56,7 +56,7 @@ struct SensorDetailView: View {
                 }
             }
         }
-        .navigationTitle(sensor.name)
+        .navigationTitle("Sensor Details")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await viewModel.fetchLatestSample(for: sensor.id)

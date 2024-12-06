@@ -79,6 +79,9 @@ struct LoginView: View {
             // Save to SwiftData
             modelContext.insert(user)
             
+            // Sign in with AuthManager
+            authManager.signIn(user: user)
+            
             withAnimation {
                 isAuthenticated = true
             }
@@ -95,7 +98,7 @@ struct LoginView: View {
             let users = try? modelContext.fetch(FetchDescriptor<User>())
             if let user = users?.first {
                 logger.debug("Restoring existing user session")
-                authManager.restoreUser(user)
+                authManager.restoreUser(from: modelContext)
                 isAuthenticated = true
             } else {
                 logger.error("No user found in database")

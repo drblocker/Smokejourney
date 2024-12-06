@@ -5,6 +5,7 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var isAuthenticated = false
     @StateObject private var sessionManager = SmokingSessionManager.shared
+    @StateObject private var authManager = AuthenticationManager.shared
     @State private var showReviewSheet = false
     
     var body: some View {
@@ -34,19 +35,9 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            checkExistingUser()
+            authManager.restoreUser(from: modelContext)
             sessionManager.setModelContext(modelContext)
             sessionManager.initialize()
-        }
-    }
-    
-    private func checkExistingUser() {
-        do {
-            let descriptor = FetchDescriptor<User>()
-            let users = try modelContext.fetch(descriptor)
-            isAuthenticated = !users.isEmpty
-        } catch {
-            print("Failed to fetch users: \(error)")
         }
     }
 }

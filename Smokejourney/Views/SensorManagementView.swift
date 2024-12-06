@@ -6,7 +6,7 @@ struct SensorManagementView: View {
     @StateObject private var viewModel = HumidorEnvironmentViewModel()
     @State private var showAddSensor = false
     @State private var showSensorDetails = false
-    @State private var selectedSensor: Sensor?
+    @State private var selectedSensor: SensorPushDevice?
     @State private var showAlert = false
     @State private var alertMessage = ""
     
@@ -50,7 +50,9 @@ struct SensorManagementView: View {
             }
         }
         .sheet(isPresented: $showAddSensor) {
-            AddSensorView()
+            NavigationStack {
+                SensorPushAuthView()
+            }
         }
         .sheet(item: $selectedSensor) { sensor in
             NavigationStack {
@@ -69,7 +71,7 @@ struct SensorManagementView: View {
 }
 
 struct SensorRowView: View {
-    let sensor: Sensor
+    let sensor: SensorPushDevice
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -131,7 +133,7 @@ struct SensorRowView: View {
 }
 
 struct StatusIndicator: View {
-    let sensor: Sensor
+    let sensor: SensorPushDevice
     
     var body: some View {
         HStack(spacing: 4) {
