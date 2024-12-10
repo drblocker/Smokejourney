@@ -72,7 +72,7 @@ struct MainTabView: View {
             }
             
             NavigationStack {
-                ProfileView(isAuthenticated: $isAuthenticated)
+                ProfileView()
             }
             .tabItem {
                 Label("Profile", systemImage: "person")

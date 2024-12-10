@@ -4,10 +4,11 @@ import AuthenticationServices
 import os.log
 
 struct LoginView: View {
-    @Environment(\.modelContext) private var modelContext
     @Binding var isAuthenticated: Bool
     @StateObject private var authManager = AuthenticationManager.shared
-    private let logger = Logger(subsystem: "com.smokejourney", category: "Authentication")
+    @Environment(\.modelContext) private var modelContext
+    @State private var showingError = false
+    @State private var errorMessage = ""
     
     var body: some View {
         VStack(spacing: 30) {
@@ -29,13 +30,23 @@ struct LoginView: View {
             Spacer()
             
             // Sign in with Apple Button
-            SignInWithAppleButton(
-                onRequest: configureAppleSignIn,
-                onCompletion: handleAppleSignIn
-            )
-            .signInWithAppleButtonStyle(.black)
-            .frame(height: 50)
-            .padding(.horizontal)
+            SignInWithAppleButton(.signIn) { request in
+                request.requestedScopes = [.email, .fullName]
+            } onCompletion: { result in
+                Task {
+                    do {
+                        try await authManager.handleSignInWithApple(result)
+                        isAuthenticated = true
+                    } catch {
+                        await MainActor.run {
+                            errorMessage = error.localizedDescription
+                            showingError = true
+                        }
+                    }
+                }
+            }
+            .frame(height: 44)
+            .padding()
             
             // Privacy Note
             Text("Your data is stored securely and synced across your devices using iCloud")
@@ -48,48 +59,10 @@ struct LoginView: View {
         .task {
             await checkExistingAuth()
         }
-    }
-    
-    private func configureAppleSignIn(_ request: ASAuthorizationAppleIDRequest) {
-        request.requestedScopes = [.fullName, .email]
-    }
-    
-    private func handleAppleSignIn(_ result: Result<ASAuthorization, Error>) {
-        switch result {
-        case .success(let authorization):
-            guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential else {
-                logger.error("Unable to get Apple ID credentials")
-                return
-            }
-            
-            // Create user
-            let user = User()
-            if let email = appleIDCredential.email {
-                user.email = email
-            }
-            if let fullName = appleIDCredential.fullName {
-                user.displayName = [
-                    fullName.givenName,
-                    fullName.familyName
-                ].compactMap { $0 }.joined(separator: " ")
-            }
-            user.appleUserIdentifier = appleIDCredential.user
-            user.updateLastSignIn()
-            
-            // Save to SwiftData
-            modelContext.insert(user)
-            
-            // Sign in with AuthManager
-            authManager.signIn(user: user)
-            
-            withAnimation {
-                isAuthenticated = true
-            }
-            
-            logger.debug("Successfully signed in with Apple")
-            
-        case .failure(let error):
-            logger.error("Apple sign in failed: \(error.localizedDescription)")
+        .alert("Sign In Error", isPresented: $showingError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(errorMessage)
         }
     }
     
@@ -97,12 +70,12 @@ struct LoginView: View {
         if UserDefaults.standard.bool(forKey: "isAuthenticated") {
             let users = try? modelContext.fetch(FetchDescriptor<User>())
             if let user = users?.first {
-                logger.debug("Restoring existing user session")
                 authManager.restoreUser(from: modelContext)
-                isAuthenticated = true
+                await MainActor.run {
+                    isAuthenticated = true
+                }
             } else {
-                logger.error("No user found in database")
-                authManager.signOut()
+                await authManager.signOut()
             }
         }
     }
@@ -110,5 +83,13 @@ struct LoginView: View {
 
 #Preview {
     LoginView(isAuthenticated: .constant(false))
-        .modelContainer(for: User.self)
+        .modelContainer(for: [
+            User.self,
+            Humidor.self,
+            Cigar.self,
+            CigarPurchase.self,
+            Review.self,
+            SmokingSession.self,
+            EnvironmentSettings.self
+        ], inMemory: true)
 } 

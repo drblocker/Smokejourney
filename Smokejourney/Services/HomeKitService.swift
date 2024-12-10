@@ -1,6 +1,7 @@
 import HomeKit
 import os.log
 import UserNotifications
+import SwiftUI
 
 @MainActor
 class HomeKitService: NSObject, ObservableObject, HMHomeManagerDelegate {
@@ -321,77 +322,6 @@ class HomeKitService: NSObject, ObservableObject, HMHomeManagerDelegate {
         
         humiditySensors = home.accessories.filter { accessory in
             accessory.services.contains { $0.serviceType == HMServiceTypeHumiditySensor }
-        }
-    }
-}
-
-// MARK: - Error Types
-enum HomeKitError: LocalizedError {
-    case noHomeSelected
-    case accessoryCreationFailed
-    case authorizationDenied
-    case connectionLost
-    case recoveryFailed
-    case operationTimeout
-    case syncFailed
-    case characteristicNotFound
-    case notImplemented
-    
-    var errorDescription: String? {
-        switch self {
-        case .noHomeSelected:
-            return "No HomeKit home selected"
-        case .accessoryCreationFailed:
-            return "Failed to create HomeKit accessory"
-        case .authorizationDenied:
-            return "HomeKit access denied"
-        case .connectionLost:
-            return "HomeKit connection lost"
-        case .recoveryFailed:
-            return "Failed to recover HomeKit connection"
-        case .operationTimeout:
-            return "Operation timed out"
-        case .syncFailed:
-            return "Failed to sync with HomeKit"
-        case .characteristicNotFound:
-            return "Characteristic not found"
-        case .notImplemented:
-            return "Feature not implemented"
-        }
-    }
-}
-
-// MARK: - Automation Types
-enum AutomationTrigger {
-    enum TriggerType {
-        case threshold(value: Double, comparison: NSComparisonPredicate.Operator)
-        case time(DateComponents)
-    }
-    
-    case temperature(TriggerType)
-    case humidity(TriggerType)
-    
-    var name: String {
-        switch self {
-        case .temperature: return "Temperature Trigger"
-        case .humidity: return "Humidity Trigger"
-        }
-    }
-}
-
-enum AutomationAction {
-    enum ActionType {
-        case notification(String)
-        case setValue(Double, HMCharacteristic)
-    }
-    
-    case alert(ActionType)
-    case adjust(ActionType)
-    
-    var name: String {
-        switch self {
-        case .alert: return "Alert Action"
-        case .adjust: return "Adjustment Action"
         }
     }
 } 

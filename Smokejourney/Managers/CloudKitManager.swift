@@ -36,21 +36,13 @@ final class CloudKitManager {
         container = CKContainer(identifier: containerIdentifier)
     }
     
-    func verifyiCloudAccount() async throws {
+    func verifyCloudKitAccess() async throws {
+        logger.debug("Checking iCloud account status")
         guard let container = container else {
             throw CloudKitError.serverError(NSError(domain: "CloudKitManager", code: -1))
         }
         
-        do {
-            let accountStatus = try await container.accountStatus()
-            try handleAccountStatus(accountStatus)
-        } catch {
-            logger.error("iCloud verification failed: \(error.localizedDescription)")
-            throw CloudKitError.serverError(error)
-        }
-    }
-    
-    private func handleAccountStatus(_ accountStatus: CKAccountStatus) throws {
+        let accountStatus = try await container.accountStatus()
         switch accountStatus {
         case .available:
             logger.debug("iCloud account available")
@@ -66,28 +58,42 @@ final class CloudKitManager {
             throw CloudKitError.networkError
         case .temporarilyUnavailable:
             logger.error("iCloud account temporarily unavailable")
-            throw CloudKitError.notAuthenticated
+            throw CloudKitError.networkError
         @unknown default:
             logger.error("Unknown iCloud account status")
-            throw CloudKitError.serverError(NSError(domain: "CloudKitManager", code: -2))
+            throw CloudKitError.serverError(NSError(domain: "CloudKitManager", code: -1))
         }
     }
     
-    func setupModelConfiguration() -> ModelConfiguration {
+    func setupModelConfiguration() async -> ModelConfiguration {
+        logger.debug("Setting up CloudKit model configuration")
         let schema = Schema([
             Cigar.self,
             User.self,
             Humidor.self,
             SmokingSession.self,
-            Review.self
+            Review.self,
+            CigarPurchase.self,
+            EnvironmentSettings.self
         ])
         
-        return ModelConfiguration(
-            schema: schema,
-            isStoredInMemoryOnly: false,
-            allowsSave: true,
-            cloudKitDatabase: .private(containerIdentifier)
-        )
+        do {
+            try await verifyCloudKitAccess()
+            logger.debug("iCloud account verified, setting up CloudKit sync")
+            return ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: false,
+                allowsSave: true,
+                cloudKitDatabase: .private(containerIdentifier)
+            )
+        } catch {
+            logger.error("Failed to setup CloudKit, falling back to local storage: \(error.localizedDescription)")
+            return ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: false,
+                allowsSave: true
+            )
+        }
     }
     
     func handleCloudKitError(_ error: Error) -> CloudKitError {
@@ -105,5 +111,38 @@ final class CloudKitManager {
         default:
             return .serverError(error)
         }
+    }
+    
+    func verifyAndRestoreData() async throws {
+        logger.debug("Verifying CloudKit data")
+        
+        // First verify access
+        try await verifyCloudKitAccess()
+        
+        // Check if we have a container
+        guard let container = container else {
+            throw CloudKitError.serverError(NSError(domain: "CloudKitManager", code: -1))
+        }
+        
+        // Fetch private database
+        let privateDB = container.privateCloudDatabase
+        
+        // Log status
+        logger.debug("CloudKit container accessible, checking data")
+        
+        // Trigger a sync using async/await
+        return try await withCheckedThrowingContinuation { continuation in
+            privateDB.fetchAllRecordZones { zones, error in
+                if let error = error {
+                    self.logger.error("Failed to fetch record zones: \(error.localizedDescription)")
+                    continuation.resume(throwing: error)
+                } else {
+                    self.logger.debug("Successfully fetched \(zones?.count ?? 0) record zones")
+                    continuation.resume()
+                }
+            }
+        }
+        
+        logger.debug("CloudKit data verification complete")
     }
 } 

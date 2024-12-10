@@ -161,10 +161,7 @@ struct AddReviewView: View {
                 }
                 
                 Section("Appearance") {
-                    RatingRow(title: "Wrapper Color Consistency", rating: $appearanceRating.wrapperColorConsistency)
-                    RatingRow(title: "Surface Texture", rating: $appearanceRating.surfaceTexture)
-                    RatingRow(title: "Visible Veins", rating: $appearanceRating.visibleVeins)
-                    RatingRow(title: "Overall Construction", rating: $appearanceRating.overallConstruction)
+                    RatingRow(title: "Appearance", rating: $appearanceRating.overallConstruction)
                     TextField("Notes", text: Binding(
                         get: { appearanceRating.notes ?? "" },
                         set: { appearanceRating.notes = $0 }
@@ -172,9 +169,7 @@ struct AddReviewView: View {
                 }
                 
                 Section("Aroma") {
-                    RatingRow(title: "Pre-Light Scent", rating: $aromaRating.preLightScent)
-                    RatingRow(title: "Foot Aroma", rating: $aromaRating.footAroma)
-                    RatingRow(title: "Cold Draw Notes", rating: $aromaRating.coldDrawNotes)
+                    RatingRow(title: "Aroma", rating: $aromaRating.preLightScent)
                     TextField("Notes", text: Binding(
                         get: { aromaRating.notes ?? "" },
                         set: { aromaRating.notes = $0 }
@@ -182,10 +177,7 @@ struct AddReviewView: View {
                 }
                 
                 Section("Construction") {
-                    RatingRow(title: "Firmness Consistency", rating: $constructionRating.firmnessConsistency)
-                    RatingRow(title: "Cap Application", rating: $constructionRating.capApplication)
-                    RatingRow(title: "Wrapper Integrity", rating: $constructionRating.wrapperIntegrity)
-                    RatingRow(title: "Visible Defects", rating: $constructionRating.visibleDefects)
+                    RatingRow(title: "Construction", rating: $constructionRating.firmnessConsistency)
                     TextField("Notes", text: Binding(
                         get: { constructionRating.notes ?? "" },
                         set: { constructionRating.notes = $0 }
@@ -193,9 +185,7 @@ struct AddReviewView: View {
                 }
                 
                 Section("Draw") {
-                    RatingRow(title: "Resistance Level", rating: $drawRating.resistanceLevel)
-                    RatingRow(title: "Smoke Production", rating: $drawRating.smokeProduction)
-                    RatingRow(title: "Draw Consistency", rating: $drawRating.drawConsistency)
+                    RatingRow(title: "Draw", rating: $drawRating.resistanceLevel)
                     TextField("Notes", text: Binding(
                         get: { drawRating.notes ?? "" },
                         set: { drawRating.notes = $0 }
@@ -203,9 +193,7 @@ struct AddReviewView: View {
                 }
                 
                 Section("Flavor") {
-                    RatingRow(title: "Complexity", rating: $flavorRating.complexity)
-                    RatingRow(title: "Flavor Transitions", rating: $flavorRating.flavorTransitions)
-                    RatingRow(title: "Flavor Intensity", rating: $flavorRating.flavorIntensity)
+                    RatingRow(title: "Flavor", rating: $flavorRating.complexity)
                     TextField("Notes", text: Binding(
                         get: { flavorRating.notes ?? "" },
                         set: { flavorRating.notes = $0 }
@@ -213,10 +201,7 @@ struct AddReviewView: View {
                 }
                 
                 Section("Burn") {
-                    RatingRow(title: "Burn Line Evenness", rating: $burnRating.burnLineEvenness)
-                    RatingRow(title: "Touch-ups Needed", rating: $burnRating.touchUpsNeeded)
-                    RatingRow(title: "Tunneling", rating: $burnRating.tunneling)
-                    RatingRow(title: "Burn Rate", rating: $burnRating.burnRate)
+                    RatingRow(title: "Burn", rating: $burnRating.burnLineEvenness)
                     TextField("Notes", text: Binding(
                         get: { burnRating.notes ?? "" },
                         set: { burnRating.notes = $0 }
@@ -224,10 +209,7 @@ struct AddReviewView: View {
                 }
                 
                 Section("Ash") {
-                    RatingRow(title: "Color", rating: $ashRating.color)
-                    RatingRow(title: "Firmness", rating: $ashRating.firmness)
-                    RatingRow(title: "Stack Consistency", rating: $ashRating.stackConsistency)
-                    RatingRow(title: "Hold Length", rating: $ashRating.holdLength)
+                    RatingRow(title: "Ash", rating: $ashRating.color)
                     TextField("Notes", text: Binding(
                         get: { ashRating.notes ?? "" },
                         set: { ashRating.notes = $0 }
@@ -235,9 +217,7 @@ struct AddReviewView: View {
                 }
                 
                 Section("Strength") {
-                    RatingRow(title: "Body", rating: $strengthRating.body)
-                    RatingRow(title: "Nicotine Impact", rating: $strengthRating.nicotineImpact)
-                    RatingRow(title: "Progression", rating: $strengthRating.progression)
+                    RatingRow(title: "Strength", rating: $strengthRating.body)
                     TextField("Notes", text: Binding(
                         get: { strengthRating.notes ?? "" },
                         set: { strengthRating.notes = $0 }
@@ -245,9 +225,7 @@ struct AddReviewView: View {
                 }
                 
                 Section("Consistency") {
-                    RatingRow(title: "Flavor Stability", rating: $consistencyRating.flavorStability)
-                    RatingRow(title: "Draw Maintenance", rating: $consistencyRating.drawMaintenance)
-                    RatingRow(title: "Performance Reliability", rating: $consistencyRating.performanceReliability)
+                    RatingRow(title: "Consistency", rating: $consistencyRating.flavorStability)
                     TextField("Notes", text: Binding(
                         get: { consistencyRating.notes ?? "" },
                         set: { consistencyRating.notes = $0 }
@@ -255,9 +233,7 @@ struct AddReviewView: View {
                 }
                 
                 Section("Finish") {
-                    RatingRow(title: "Aftertaste Quality", rating: $finishRating.aftertasteQuality)
-                    RatingRow(title: "Flavor Evolution", rating: $finishRating.flavorEvolution)
-                    RatingRow(title: "Finish Length", rating: $finishRating.finishLength)
+                    RatingRow(title: "Finish", rating: $finishRating.aftertasteQuality)
                     TextField("Notes", text: Binding(
                         get: { finishRating.notes ?? "" },
                         set: { finishRating.notes = $0 }

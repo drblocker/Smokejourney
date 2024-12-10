@@ -18,6 +18,15 @@ final class Humidor {
     var targetHumidity: Double?
     var targetTemperature: Double?
     
+    // Add HomeKit properties
+    var homeKitEnabled: Bool = false
+    var homeKitRoomName: String?
+    var homeKitAccessoryIdentifier: String?
+    var homeKitTemperatureSensorID: String?
+    var homeKitHumiditySensorID: String?
+    
+    @Relationship(deleteRule: .cascade) var environmentSettings: EnvironmentSettings?
+    
     init(name: String, capacity: Int, description: String? = nil, location: String? = nil) {
         self.name = name
         self.capacity = capacity
@@ -26,6 +35,7 @@ final class Humidor {
         self.createdAt = Date()
         self.cigars = []
         self.sensorId = nil
+        self.environmentSettings = EnvironmentSettings()
     }
     
     init() {
@@ -67,5 +77,21 @@ final class Humidor {
     
     var isNearCapacity: Bool {
         capacityPercentage >= 0.9 // 90% full
+    }
+    
+    var effectiveMaxTemperature: Double {
+        environmentSettings?.maxTemperature ?? 72.0
+    }
+    
+    var effectiveMinTemperature: Double {
+        environmentSettings?.minTemperature ?? 65.0
+    }
+    
+    var effectiveMaxHumidity: Double {
+        environmentSettings?.maxHumidity ?? 72.0
+    }
+    
+    var effectiveMinHumidity: Double {
+        environmentSettings?.minHumidity ?? 65.0
     }
 } 

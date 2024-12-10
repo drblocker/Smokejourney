@@ -14,5 +14,9 @@
 	</array>
 	<key>NSHomeKitUsageDescription</key>
 	<string>SmokeJourney needs access to HomeKit to integrate your humidor sensors with your smart home.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>We need camera access to take photos of your cigars</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>We need photo library access to add photos of your cigars</string>
 </dict>
 </plist>

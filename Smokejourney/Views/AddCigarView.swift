@@ -44,6 +44,10 @@ struct AddCigarView: View {
     @State private var isCustomName = false
     @State private var customName = ""
     @State private var customNameError: String?
+    @State private var isShowingPhotoSource = false
+    @State private var isShowingCamera = false
+    @State private var isShowingPhotoPicker = false
+    @State private var isShowingPhotoOptions = false
     
     private let brands = CigarBrands.shared
     private let sizes = CigarSizes.shared
@@ -147,152 +151,165 @@ struct AddCigarView: View {
     }
     
     var body: some View {
-        Form {
-            Section("Brand Selection") {
-                HStack {
-                    Text("Brand")
-                    Spacer()
-                    Button(action: { showBrandPicker = true }) {
-                        Text(brand.isEmpty ? "Select Brand" : brand)
-                            .foregroundColor(brand.isEmpty ? .secondary : .primary)
-                    }
-                }
-                
-                if selectedBrand != nil {
+        NavigationStack {
+            Form {
+                Section("Brand Selection") {
                     HStack {
-                        Text("Name")
+                        Text("Brand")
                         Spacer()
-                        Button(action: { showBrandLinePicker = true }) {
-                            Text(name.isEmpty ? "Select Name" : name)
-                                .foregroundColor(name.isEmpty ? .secondary : .primary)
+                        Button(action: { showBrandPicker = true }) {
+                            Text(brand.isEmpty ? "Select Brand" : brand)
+                                .foregroundColor(brand.isEmpty ? .secondary : .primary)
                         }
                     }
-                }
-                
-                Toggle("Custom Brand", isOn: $isCustomBrand)
-                
-                if isCustomBrand {
-                    TextField("Enter Brand Name", text: $brand)
-                    TextField("Enter Name", text: $name)
-                }
-            }
-            
-            if let selectedBrand, !isCustomBrand {
-                Section("Brand Info") {
-                    Text(selectedBrand.description)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Text("Country: \(selectedBrand.country)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            
-            Section("Cigar Details") {
-                TextField("Name", text: $name)
-                
-                HStack {
-                    Text("Size")
-                    Spacer()
-                    Button(action: { showSizePicker = true }) {
-                        Text(size.isEmpty ? "Select Size" : size)
-                            .foregroundColor(size.isEmpty ? .secondary : .primary)
+                    
+                    if selectedBrand != nil {
+                        HStack {
+                            Text("Name")
+                            Spacer()
+                            Button(action: { showBrandLinePicker = true }) {
+                                Text(name.isEmpty ? "Select Name" : name)
+                                    .foregroundColor(name.isEmpty ? .secondary : .primary)
+                            }
+                        }
+                    }
+                    
+                    Toggle("Custom Brand", isOn: $isCustomBrand)
+                    
+                    if isCustomBrand {
+                        TextField("Enter Brand Name", text: $brand)
+                        TextField("Enter Name", text: $name)
                     }
                 }
                 
-                if let selectedSize {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(selectedSize.description)
+                if let selectedBrand, !isCustomBrand {
+                    Section("Brand Info") {
+                        Text(selectedBrand.description)
                             .font(.caption)
-                        Text("Length: \(selectedSize.length)")
+                            .foregroundColor(.secondary)
+                        Text("Country: \(selectedBrand.country)")
                             .font(.caption)
-                        Text("Ring Gauge: \(selectedSize.ringGauge)")
-                            .font(.caption)
-                    }
-                    .foregroundColor(.secondary)
-                }
-                
-                HStack {
-                    Text("Wrapper")
-                    Spacer()
-                    Button(action: { showWrapperPicker = true }) {
-                        Text(wrapperType.isEmpty ? "Select Wrapper" : wrapperType)
-                            .foregroundColor(wrapperType.isEmpty ? .secondary : .primary)
+                            .foregroundColor(.secondary)
                     }
                 }
                 
-                if let selectedWrapper {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(selectedWrapper.description)
-                            .font(.caption)
-                        Text("Origin: \(selectedWrapper.origin)")
-                            .font(.caption)
-                        Text("Color: \(selectedWrapper.color)")
-                            .font(.caption)
-                        Text("Characteristics: \(selectedWrapper.characteristics)")
-                            .font(.caption)
+                Section("Cigar Details") {
+                    TextField("Name", text: $name)
+                    
+                    HStack {
+                        Text("Size")
+                        Spacer()
+                        Button(action: { showSizePicker = true }) {
+                            Text(size.isEmpty ? "Select Size" : size)
+                                .foregroundColor(size.isEmpty ? .secondary : .primary)
+                        }
                     }
-                    .foregroundColor(.secondary)
-                }
-                
-                HStack {
-                    Text("Strength")
-                    Spacer()
-                    Button(action: { showStrengthPicker = true }) {
-                        Text(selectedStrength?.name ?? "Select Strength")
-                            .foregroundColor(selectedStrength == nil ? .secondary : .primary)
-                    }
-                }
-                
-                if let selectedStrength {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(selectedStrength.description)
-                            .font(.caption)
-                        Text("Characteristics: \(selectedStrength.characteristics)")
-                            .font(.caption)
-                        Text("Examples:")
-                            .font(.caption)
-                        ForEach(selectedStrength.examples, id: \.self) { example in
-                            Text("• \(example)")
+                    
+                    if let selectedSize {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(selectedSize.description)
+                                .font(.caption)
+                            Text("Length: \(selectedSize.length)")
+                                .font(.caption)
+                            Text("Ring Gauge: \(selectedSize.ringGauge)")
                                 .font(.caption)
                         }
+                        .foregroundColor(.secondary)
                     }
-                    .foregroundColor(.secondary)
-                }
-            }
-            
-            Section("Wrapper Photo") {
-                if let wrapperImage {
-                    Image(uiImage: wrapperImage)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxHeight: 200)
+                    
+                    HStack {
+                        Text("Wrapper")
+                        Spacer()
+                        Button(action: { showWrapperPicker = true }) {
+                            Text(wrapperType.isEmpty ? "Select Wrapper" : wrapperType)
+                                .foregroundColor(wrapperType.isEmpty ? .secondary : .primary)
+                        }
+                    }
+                    
+                    if let selectedWrapper {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(selectedWrapper.description)
+                                .font(.caption)
+                            Text("Origin: \(selectedWrapper.origin)")
+                                .font(.caption)
+                            Text("Color: \(selectedWrapper.color)")
+                                .font(.caption)
+                            Text("Characteristics: \(selectedWrapper.characteristics)")
+                                .font(.caption)
+                        }
+                        .foregroundColor(.secondary)
+                    }
+                    
+                    HStack {
+                        Text("Strength")
+                        Spacer()
+                        Button(action: { showStrengthPicker = true }) {
+                            Text(selectedStrength?.name ?? "Select Strength")
+                                .foregroundColor(selectedStrength == nil ? .secondary : .primary)
+                        }
+                    }
+                    
+                    if let selectedStrength {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(selectedStrength.description)
+                                .font(.caption)
+                            Text("Characteristics: \(selectedStrength.characteristics)")
+                                .font(.caption)
+                            Text("Examples:")
+                                .font(.caption)
+                            ForEach(selectedStrength.examples, id: \.self) { example in
+                                Text("• \(example)")
+                                    .font(.caption)
+                            }
+                        }
+                        .foregroundColor(.secondary)
+                    }
                 }
                 
-                Button(action: { showPhotoOptions = true }) {
-                    Label("Add Photo", systemImage: "photo.on.rectangle.angled")
+                Section("Wrapper Photo") {
+                    if let wrapperImage {
+                        Image(uiImage: wrapperImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxHeight: 200)
+                    }
+                    
+                    Button(action: {
+                        isShowingPhotoOptions = true
+                    }) {
+                        Label("Add Photo", systemImage: "photo.on.rectangle.angled")
+                    }
                 }
             }
-            .confirmationDialog("Choose Photo Source", isPresented: $showPhotoOptions) {
-                Button("Take Photo") {
-                    photoSource = .camera
+            .navigationTitle("Add Cigar")
+            .confirmationDialog("Choose Photo Source", isPresented: $isShowingPhotoOptions) {
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button("Take Photo") {
+                        isShowingCamera = true
+                    }
                 }
                 Button("Choose from Library") {
-                    photoSource = .photoLibrary
-                }
-                Button("Cancel", role: .cancel) {
-                    photoSource = nil
+                    isShowingPhotoPicker = true
                 }
             }
-            .sheet(item: $photoSource) { source in
-                switch source {
-                case .camera:
-                    CameraView(image: $wrapperImage)
-                case .photoLibrary:
-                    PhotosPicker(selection: $selectedPhotoItem,
-                                matching: .images,
-                                photoLibrary: .shared()) {
-                        Text("Select Photo")
+            .fullScreenCover(isPresented: $isShowingCamera) {
+                CameraView(image: $wrapperImage)
+                    .ignoresSafeArea()
+            }
+            .sheet(isPresented: $isShowingPhotoPicker) {
+                PhotosPicker(selection: $selectedPhotoItem,
+                           matching: .images,
+                           photoLibrary: .shared()) {
+                    Text("Select Photo")
+                }
+            }
+            .onChange(of: selectedPhotoItem) { item in
+                Task {
+                    if let data = try? await item?.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        await MainActor.run {
+                            wrapperImage = image
+                        }
                     }
                 }
             }
