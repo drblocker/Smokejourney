@@ -3,7 +3,7 @@ import SwiftUI
 import os.log
 
 @MainActor
-class HumidorEnvironmentViewModel: ObservableObject {
+final class HumidorEnvironmentViewModel: ObservableObject {
     @Published var historicalData: [(timestamp: Date, temperature: Double, humidity: Double)] = []
     @Published var isLoading = false
     @Published var error: String?
@@ -158,40 +158,26 @@ class HumidorEnvironmentViewModel: ObservableObject {
     }
     
     func fetchLatestSample(for sensorId: String) async {
-        do {
-            try await ensureAuthenticated()
-            guard !isLoading else { return }
-            
-            logger.debug("Fetching latest sample for sensor: \(sensorId)")
+        await MainActor.run {
             isLoading = true
-            
-            do {
-                let samples = try await sensorPushService.getSamples(for: sensorId, limit: 1)
+        }
+        
+        do {
+            let samples = try await sensorPushService.getSamples(for: sensorId, limit: 1)
+            if let latest = samples.first {
                 await MainActor.run {
-                    if let latest = samples.first {
-                        logger.debug("Received sample - Temperature: \(latest.temperature)°F, Humidity: \(latest.humidity)%")
-                        self.temperature = latest.temperature
-                        self.humidity = latest.humidity
-                        self.lastUpdated = latest.time
-                        updateEnvironmentStatus()
-                        checkForAlerts()
-                    } else {
-                        logger.error("No samples returned for sensor")
-                    }
+                    self.temperature = latest.temperature
+                    self.humidity = latest.humidity
+                    self.lastUpdated = latest.time
                     self.isLoading = false
+                    updateEnvironmentStatus()
+                    checkForAlerts()
                 }
-            } catch {
-                await MainActor.run {
-                    self.error = error.localizedDescription
-                    self.isLoading = false
-                }
-                logger.error("Failed to fetch sample: \(error.localizedDescription)")
             }
         } catch {
-            logger.error("Authentication failed: \(error.localizedDescription)")
             await MainActor.run {
                 self.error = error.localizedDescription
-                showAuthenticationSheet = true
+                self.isLoading = false
             }
         }
     }

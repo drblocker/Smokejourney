@@ -55,7 +55,17 @@ struct HumidorListView: View {
     
     private func deleteHumidors(_ indexSet: IndexSet) {
         for index in indexSet {
-            modelContext.delete(humidors[index])
+            deleteHumidor(humidors[index])
+        }
+    }
+    
+    private func deleteHumidor(_ humidor: Humidor) {
+        Task {
+            do {
+                try await modelContext.deleteWithCloudKit(humidor)
+            } catch {
+                print("Error deleting humidor: \(error)")
+            }
         }
     }
 } 

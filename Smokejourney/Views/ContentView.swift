@@ -2,52 +2,20 @@ import SwiftUI
 import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @State private var isAuthenticated = false
-    @StateObject private var sessionManager = SmokingSessionManager.shared
     @StateObject private var authManager = AuthenticationManager.shared
-    @State private var showReviewSheet = false
     
     var body: some View {
         Group {
-            if isAuthenticated {
-                MainTabView(
-                    showReviewSheet: $showReviewSheet,
-                    isAuthenticated: $isAuthenticated
-                )
-                .sheet(isPresented: $showReviewSheet) {
-                    if let cigar = sessionManager.lastEndedCigar {
-                        NavigationStack {
-                            AddReviewView(
-                                cigar: cigar,
-                                smokingDuration: sessionManager.lastSessionDuration
-                            )
-                            .onDisappear {
-                                sessionManager.clearLastEndedSession()
-                            }
-                        }
-                    }
-                }
+            if authManager.isAuthenticated {
+                MainTabView()
             } else {
-                NavigationStack {
-                    LoginView(isAuthenticated: $isAuthenticated)
-                }
+                LoginView()
             }
-        }
-        .onAppear {
-            authManager.restoreUser(from: modelContext)
-            sessionManager.setModelContext(modelContext)
-            sessionManager.initialize()
         }
     }
 }
 
 struct MainTabView: View {
-    @Binding var showReviewSheet: Bool
-    @Binding var isAuthenticated: Bool
-    @StateObject private var sessionManager = SmokingSessionManager.shared
-    @Environment(\.modelContext) private var modelContext
-    
     var body: some View {
         TabView {
             NavigationStack {
@@ -58,7 +26,7 @@ struct MainTabView: View {
             }
             
             NavigationStack {
-                EnvironmentalMonitoringTabView()
+                EnvironmentalMonitoringView(humidor: Humidor())
             }
             .tabItem {
                 Label("Environment", systemImage: "thermometer")
@@ -68,21 +36,22 @@ struct MainTabView: View {
                 StatisticsView()
             }
             .tabItem {
-                Label("Statistics", systemImage: "chart.bar")
+                Label("Statistics", systemImage: "chart.bar.fill")
             }
             
             NavigationStack {
                 ProfileView()
             }
             .tabItem {
-                Label("Profile", systemImage: "person")
+                Label("Profile", systemImage: "person.circle")
             }
         }
-        .onChange(of: sessionManager.lastEndedCigar) { cigar in
-            showReviewSheet = cigar != nil
-        }
-        .onAppear {
-            sessionManager.initialize()
-        }
+    }
+}
+
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView()
+            .environmentObject(AuthenticationManager.shared)
     }
 } 

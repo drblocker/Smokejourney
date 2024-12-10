@@ -113,9 +113,7 @@ final class SmokingSessionManager: ObservableObject {
     }
     
     func initialize() {
-        // Always start fresh
         clearAllState()
-        logger.debug("SmokingSessionManager initialized")
     }
     
     func clearLastEndedSession() {

@@ -1,7 +1,6 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - Profile View Components
 struct ProfileHeader: View {
     let user: User
     
@@ -17,13 +16,11 @@ struct ProfileHeader: View {
                     .font(.title2)
                     .bold()
                 
-                if let email = user.email {
-                    Text(email)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
+                Text(user.effectiveEmail)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
                 
-                Text(user.memberSince)
+                Text("Member since \(user.memberSince)")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -31,4 +28,9 @@ struct ProfileHeader: View {
         .frame(maxWidth: .infinity)
         .padding()
     }
+}
+
+#Preview {
+    ProfileHeader(user: User(id: "preview", email: "test@example.com", name: "Preview User"))
+        .previewLayout(.sizeThatFits)
 } 

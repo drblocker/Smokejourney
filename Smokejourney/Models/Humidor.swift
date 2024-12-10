@@ -14,18 +14,21 @@ final class Humidor {
     var cigars: [Cigar]?
     var sensorId: String?
     
-    @Relationship(deleteRule: .cascade) var sensors: [Sensor]?
+    @Relationship(.cascade)
+    var sensors: [Sensor]?
+    
     var targetHumidity: Double?
     var targetTemperature: Double?
     
-    // Add HomeKit properties
+    // HomeKit properties
     var homeKitEnabled: Bool = false
     var homeKitRoomName: String?
     var homeKitAccessoryIdentifier: String?
     var homeKitTemperatureSensorID: String?
     var homeKitHumiditySensorID: String?
     
-    @Relationship(deleteRule: .cascade) var environmentSettings: EnvironmentSettings?
+    @Relationship(deleteRule: .cascade)
+    var environmentSettings: EnvironmentSettings?
     
     init(name: String, capacity: Int, description: String? = nil, location: String? = nil) {
         self.name = name
@@ -35,7 +38,6 @@ final class Humidor {
         self.createdAt = Date()
         self.cigars = []
         self.sensorId = nil
-        self.environmentSettings = EnvironmentSettings()
     }
     
     init() {

@@ -8,9 +8,15 @@ final class Sensor {
     var type: SensorType?
     var customName: String?
     var location: String?
+    
+    @Relationship
     var humidor: Humidor?
-    @Relationship(inverse: \SensorReading.sensor) var readings: [SensorReading]?
-    @Relationship(inverse: \SensorReading.sensorAsLastReading) var lastReading: SensorReading?
+    
+    @Relationship
+    var readings: [SensorReading]?
+    
+    @Relationship
+    var lastReading: SensorReading?
     
     var displayName: String {
         customName ?? name ?? "Unnamed Sensor"
