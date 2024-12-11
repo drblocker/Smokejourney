@@ -5,9 +5,10 @@ struct AddAutomationView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var homeKit = HomeKitService.shared
     
+    // MARK: - State Properties
     @State private var name = ""
     @State private var triggerType: TriggerType = .threshold
-    @State private var sensorType: HomeKitService.SensorType = .temperature
+    @State private var sensorType = HomeKitService.SensorType.temperature
     @State private var thresholdValue = 70.0
     @State private var comparisonType: ComparisonType = .above
     @State private var timeComponents = DateComponents()
@@ -19,6 +20,7 @@ struct AddAutomationView: View {
     @State private var error: Error?
     @State private var showError = false
     
+    // MARK: - Types
     enum TriggerType: String, CaseIterable {
         case threshold = "Threshold"
         case time = "Time"
@@ -41,82 +43,19 @@ struct AddAutomationView: View {
         case adjust = "Adjust Value"
     }
     
+    // MARK: - View Body
     var body: some View {
         NavigationStack {
             Form {
-                Section("Automation Name") {
-                    TextField("Name", text: $name)
-                }
-                
-                Section("Trigger") {
-                    Picker("Type", selection: $triggerType) {
-                        ForEach(TriggerType.allCases, id: \.self) { type in
-                            Text(type.rawValue).tag(type)
-                        }
-                    }
-                    
-                    if triggerType == .threshold {
-                        Picker("Sensor", selection: $sensorType) {
-                            Text("Temperature").tag(HomeKitService.SensorType.temperature)
-                            Text("Humidity").tag(HomeKitService.SensorType.humidity)
-                        }
-                        
-                        HStack {
-                            Text("Value")
-                            Spacer()
-                            TextField("Value", value: $thresholdValue, format: .number)
-                                .keyboardType(.decimalPad)
-                                .multilineTextAlignment(.trailing)
-                            Text(sensorType == .temperature ? "°F" : "%")
-                        }
-                        
-                        Picker("Condition", selection: $comparisonType) {
-                            ForEach(ComparisonType.allCases, id: \.self) { type in
-                                Text(type.rawValue).tag(type)
-                            }
-                        }
-                    } else {
-                        DatePicker("Time", selection: .constant(Date()), displayedComponents: [.hourAndMinute])
-                    }
-                }
-                
-                Section("Action") {
-                    Picker("Type", selection: $actionType) {
-                        ForEach(ActionType.allCases, id: \.self) { type in
-                            Text(type.rawValue).tag(type)
-                        }
-                    }
-                    
-                    switch actionType {
-                    case .notification:
-                        TextField("Message", text: $notificationMessage)
-                    case .adjust:
-                        HStack {
-                            Text("Target Value")
-                            Spacer()
-                            TextField("Value", value: $targetValue, format: .number)
-                                .keyboardType(.decimalPad)
-                                .multilineTextAlignment(.trailing)
-                            Text(sensorType == .temperature ? "°F" : "%")
-                        }
-                    }
-                }
+                nameSection
+                triggerSection
+                actionSection
             }
             .navigationTitle("Add Automation")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-                
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        saveAutomation()
-                    }
-                    .disabled(!isValid || isLoading)
-                }
+                cancelButton
+                saveButton
             }
             .alert("Error", isPresented: $showError, presenting: error) { _ in
                 Button("OK", role: .cancel) { }
@@ -126,6 +65,104 @@ struct AddAutomationView: View {
         }
     }
     
+    // MARK: - View Components
+    private var nameSection: some View {
+        Section("Automation Name") {
+            TextField("Name", text: $name)
+        }
+    }
+    
+    private var triggerSection: some View {
+        Section("Trigger") {
+            Picker("Type", selection: $triggerType) {
+                ForEach(TriggerType.allCases, id: \.self) { type in
+                    Text(type.rawValue).tag(type)
+                }
+            }
+            
+            if triggerType == .threshold {
+                thresholdTriggerOptions
+            } else {
+                timeTriggerOptions
+            }
+        }
+    }
+    
+    private var thresholdTriggerOptions: some View {
+        Group {
+            Picker("Sensor", selection: $sensorType) {
+                ForEach(HomeKitService.SensorType.allCases, id: \.self) { type in
+                    Text(type.rawValue).tag(type)
+                }
+            }
+            
+            HStack {
+                Text("Value")
+                Spacer()
+                TextField("Value", value: $thresholdValue, format: .number)
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.trailing)
+                Text(sensorType == .temperature ? "°F" : "%")
+            }
+            
+            Picker("Condition", selection: $comparisonType) {
+                ForEach(ComparisonType.allCases, id: \.self) { type in
+                    Text(type.rawValue).tag(type)
+                }
+            }
+        }
+    }
+    
+    private var timeTriggerOptions: some View {
+        DatePicker(
+            "Time",
+            selection: .constant(Date()),
+            displayedComponents: [.hourAndMinute]
+        )
+    }
+    
+    private var actionSection: some View {
+        Section("Action") {
+            Picker("Type", selection: $actionType) {
+                ForEach(ActionType.allCases, id: \.self) { type in
+                    Text(type.rawValue).tag(type)
+                }
+            }
+            
+            switch actionType {
+            case .notification:
+                TextField("Message", text: $notificationMessage)
+            case .adjust:
+                HStack {
+                    Text("Target Value")
+                    Spacer()
+                    TextField("Value", value: $targetValue, format: .number)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                    Text(sensorType == .temperature ? "°F" : "%")
+                }
+            }
+        }
+    }
+    
+    private var cancelButton: ToolbarItem<(), some View> {
+        ToolbarItem(placement: .cancellationAction) {
+            Button("Cancel") {
+                dismiss()
+            }
+        }
+    }
+    
+    private var saveButton: ToolbarItem<(), some View> {
+        ToolbarItem(placement: .confirmationAction) {
+            Button("Save") {
+                saveAutomation()
+            }
+            .disabled(!isValid || isLoading)
+        }
+    }
+    
+    // MARK: - Helper Methods
     private var isValid: Bool {
         if name.isEmpty { return false }
         
@@ -142,27 +179,9 @@ struct AddAutomationView: View {
         
         Task {
             do {
-                // Create trigger
-                let trigger: AutomationTrigger
-                if triggerType == .threshold {
-                    let type = AutomationTrigger.TriggerType.threshold(
-                        value: thresholdValue,
-                        comparison: comparisonType.predicateOperator
-                    )
-                    trigger = sensorType == .temperature ? .temperature(type) : .humidity(type)
-                } else {
-                    trigger = sensorType == .temperature ? 
-                        .temperature(.time(timeComponents)) : 
-                        .humidity(.time(timeComponents))
-                }
+                let trigger = createTrigger()
+                let action = createAction()
                 
-                // Create action
-                let actionType = actionType == .notification ?
-                    AutomationAction.ActionType.notification(notificationMessage) :
-                    AutomationAction.ActionType.setValue(targetValue, HMCharacteristic())
-                let action: AutomationAction = .alert(actionType)
-                
-                // Setup automation
                 try await homeKit.setupAutomation(trigger: trigger, action: action)
                 
                 await MainActor.run {
@@ -176,6 +195,27 @@ struct AddAutomationView: View {
                 }
             }
         }
+    }
+    
+    private func createTrigger() -> AutomationTrigger {
+        if triggerType == .threshold {
+            let type = AutomationTrigger.TriggerType.threshold(
+                value: thresholdValue,
+                comparison: comparisonType.predicateOperator
+            )
+            return sensorType == .temperature ? .temperature(type) : .humidity(type)
+        } else {
+            return sensorType == .temperature ? 
+                .temperature(.time(timeComponents)) : 
+                .humidity(.time(timeComponents))
+        }
+    }
+    
+    private func createAction() -> AutomationAction {
+        let actionType = self.actionType == .notification ?
+            AutomationAction.ActionType.notification(notificationMessage) :
+            AutomationAction.ActionType.setValue(targetValue, HMCharacteristic())
+        return .alert(actionType)
     }
 }
 

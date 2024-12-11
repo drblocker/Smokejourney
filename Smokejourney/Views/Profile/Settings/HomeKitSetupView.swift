@@ -232,107 +232,68 @@ extension HomeStore: HMHomeDelegate {
 }
 
 struct HomeKitSetupView: View {
+    @EnvironmentObject private var homeKitManager: HomeKitService
     @Environment(\.dismiss) private var dismiss
     let onComplete: (Bool) -> Void
     
-    @StateObject private var homeStore = HomeStore.shared
-    @State private var showingAddAccessory = false
-    @State private var showingError = false
-    @State private var errorMessage = ""
-    
     var body: some View {
-        List {
-            switch homeStore.homeManagerState {
-            case .initializing:
-                Section {
-                    ProgressView("Initializing HomeKit...")
-                        .frame(maxWidth: .infinity)
-                    Text("This may take a few moments...")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                } footer: {
-                    Text("Make sure HomeKit is enabled in Settings and you're signed into iCloud.")
-                }
-                
-            case .failed(let error):
-                Section {
-                    VStack(alignment: .leading, spacing: 8) {
+        NavigationView {
+            VStack {
+                if homeKitManager.isAuthorized && homeKitManager.currentHome != nil {
+                    // Show successful setup
+                    VStack(spacing: 20) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                            .font(.system(size: 60))
+                        
+                        Text("HomeKit Connected")
+                            .font(.title2)
+                            .bold()
+                        
+                        Text("Connected to home: \(homeKitManager.currentHome?.name ?? "")")
+                            .foregroundColor(.secondary)
+                        
+                        Button("Done") {
+                            onComplete(true)
+                            dismiss()
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    .padding()
+                } else {
+                    // Show error state
+                    VStack(spacing: 20) {
                         Text("HomeKit Error")
-                            .font(.headline)
                             .foregroundColor(.red)
-                        Text(error.localizedDescription)
-                            .font(.caption)
+                            .font(.title2)
+                            .bold()
+                        
+                        Text("Please enable HomeKit access in Settings and make sure you're signed into iCloud.")
+                            .multilineTextAlignment(.center)
+                            .foregroundColor(.secondary)
+                        
                         Button("Open Settings") {
-                            if let url = URL(string: UIApplication.openSettingsURLString) {
-                                UIApplication.shared.open(url)
+                            if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(settingsUrl)
                             }
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.borderedProminent)
                     }
-                } footer: {
-                    Text("Try enabling HomeKit access in Settings and make sure you're signed into iCloud.")
+                    .padding()
                 }
-                
-            case .noHome:
-                Section {
-                    Button {
-                        Task {
-                            do {
-                                let home = try await homeStore.createHome(named: "My Home")
-                                await MainActor.run {
-                                    homeStore.homeManagerState = .available(home)
-                                }
-                            } catch {
-                                errorMessage = error.localizedDescription
-                                showingError = true
-                            }
-                        }
-                    } label: {
-                        Label("Create Home", systemImage: "house.circle")
-                    }
-                }
-                
-            case .available(let home):
-                Section {
-                    ForEach(homeStore.accessories, id: \.uniqueIdentifier) { accessory in
-                        AccessoryRow(accessory: accessory)
-                    }
-                    
-                    Button {
-                        showingAddAccessory = true
-                    } label: {
-                        Label("Add Accessory", systemImage: "plus.circle")
-                    }
-                } header: {
-                    Text("Accessories")
-                } footer: {
-                    Text("Connect your humidors to HomeKit for automation and Siri control.")
-                }
-                
-                Section("Rooms") {
-                    ForEach(homeStore.rooms, id: \.uniqueIdentifier) { room in
-                        Text(room.name)
+            }
+            .navigationTitle("HomeKit Setup")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        onComplete(false)
+                        dismiss()
                     }
                 }
             }
-        }
-        .navigationTitle("HomeKit Setup")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Done") {
-                    onComplete(true)
-                }
-            }
-        }
-        .alert("Error", isPresented: $showingError) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(errorMessage)
-        }
-        .sheet(isPresented: $showingAddAccessory) {
-            if case .available(let home) = homeStore.homeManagerState {
-                AddAccessoryView(home: home)
+            .task {
+                await homeKitManager.checkAuthorization()
             }
         }
     }
@@ -401,6 +362,7 @@ struct AddAccessoryView: View {
 
 #Preview {
     NavigationStack {
-        HomeKitSetupView { _ in }
+        HomeKitSetupView(onComplete: { _ in })
+            .environmentObject(HomeKitService.shared)
     }
-} 
+}

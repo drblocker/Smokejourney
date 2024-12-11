@@ -1,28 +1,222 @@
 import SwiftUI
 import SwiftData
 import os.log
+import HomeKit
 
+// MARK: - Main View
 struct HumidorDetailView: View {
+    // MARK: - Environment & State
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @Bindable var humidor: Humidor
-    @StateObject private var viewModel = HumidorEnvironmentViewModel()
+    @EnvironmentObject private var homeKitManager: HomeKitService
+    @StateObject private var viewModel: HumidorEnvironmentViewModel
     
-    // State
+    @State private var showingDeleteAlert = false
+    @State private var showingAddCigar = false
+    @State private var showingAddSensor = false
+    @State private var showingEditHumidor = false
     @State private var searchText = ""
-    @State private var showAddCigar = false
-    @State private var showEditHumidor = false
-    @State private var showDeleteAlert = false
-    @State private var showAddSensor = false
-    @State private var showSensorSelection = false
+    @State private var currentTemperature: Double?
+    @State private var currentHumidity: Double?
+    @State private var selectedTempSensorID: String?
+    @State private var selectedHumiditySensorID: String?
     
-    private let logger = Logger(subsystem: "com.smokejourney", category: "HumidorDetailView")
+    private let logger = Logger(subsystem: "com.smokejourney", category: "HumidorDetail")
+    @Bindable var humidor: Humidor
     
-    // MARK: - Search Logic
-    private var cigars: [Cigar] {
-        humidor.cigars ?? []
+    // MARK: - Initialization
+    init(humidor: Humidor) {
+        self.humidor = humidor
+        _viewModel = StateObject(wrappedValue: HumidorEnvironmentViewModel())
     }
     
+    // MARK: - Computed Properties
+    private var cigars: [Cigar] {
+        humidor.effectiveCigars
+    }
+    
+    private var filteredCigars: [Cigar] {
+        guard !searchText.isEmpty else { return cigars }
+        return cigars.filter { matches($0, searchTerm: searchText) }
+    }
+    
+    // MARK: - Body
+    var body: some View {
+        List {
+            statusSection
+            environmentSection
+            cigarsSection
+        }
+        .searchable(text: $searchText, prompt: "Search cigars")
+        .navigationTitle(humidor.name ?? "Unnamed Humidor")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Button(action: { showingAddCigar = true }) {
+                        Label("Add Cigar", systemImage: "plus")
+                    }
+                    Button(action: { showingEditHumidor = true }) {
+                        Label("Edit Humidor", systemImage: "pencil")
+                    }
+                    Button(role: .destructive, action: { showingDeleteAlert = true }) {
+                        Label("Delete Humidor", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+            }
+        }
+        .sheet(isPresented: $showingAddCigar) {
+            NavigationStack {
+                AddCigarView(humidor: humidor)
+            }
+        }
+        .sheet(isPresented: $showingEditHumidor) {
+            NavigationStack {
+                EditHumidorView(humidor: humidor)
+            }
+        }
+        .sheet(isPresented: $showingAddSensor) {
+            NavigationStack {
+                HumidorSensorSelectionView(
+                    humidor: humidor,
+                    selectedTempSensorID: $selectedTempSensorID,
+                    selectedHumiditySensorID: $selectedHumiditySensorID
+                )
+            }
+        }
+        .alert("Delete Humidor?", isPresented: $showingDeleteAlert) {
+            Button("Delete", role: .destructive) {
+                deleteHumidor()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Are you sure you want to delete this humidor? This action cannot be undone.")
+        }
+        .task {
+            await setupEnvironmentMonitoring()
+            // Initialize selected sensor IDs from humidor
+            selectedTempSensorID = humidor.homeKitTemperatureSensorID
+            selectedHumiditySensorID = humidor.homeKitHumiditySensorID
+        }
+        .onAppear {
+            Task {
+                await setupCharacteristicNotifications()
+            }
+        }
+    }
+    
+    // MARK: - View Components
+    @ViewBuilder
+    private var statusSection: some View {
+        Section {
+            HumidorStatusView(humidor: humidor)
+        }
+    }
+    
+    @ViewBuilder
+    private var environmentSection: some View {
+        Section("Environment") {
+            // Temperature Reading
+            if let tempID = humidor.homeKitTemperatureSensorID,
+               let sensor = homeKitManager.temperatureSensors.first(where: { $0.uniqueIdentifier.uuidString == tempID }) {
+                HStack {
+                    Label("Temperature", systemImage: "thermometer")
+                    Spacer()
+                    if let temp = currentTemperature {
+                        Text(String(format: "%.1f°F", temp))
+                            .foregroundStyle(sensor.isReachable ? .primary : .secondary)
+                    } else {
+                        Text("--°F")
+                            .foregroundStyle(.secondary)
+                    }
+                    if !sensor.isReachable {
+                        Image(systemName: "wifi.slash")
+                            .foregroundColor(.red)
+                    }
+                }
+            }
+            
+            // Humidity Reading
+            if let humidityID = humidor.homeKitHumiditySensorID,
+               let sensor = homeKitManager.humiditySensors.first(where: { $0.uniqueIdentifier.uuidString == humidityID }) {
+                HStack {
+                    Label("Humidity", systemImage: "humidity")
+                    Spacer()
+                    if let humidity = currentHumidity {
+                        Text(String(format: "%.1f%%", humidity))
+                            .foregroundStyle(sensor.isReachable ? .primary : .secondary)
+                    } else {
+                        Text("--%")
+                            .foregroundStyle(.secondary)
+                    }
+                    if !sensor.isReachable {
+                        Image(systemName: "wifi.slash")
+                            .foregroundColor(.red)
+                    }
+                }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var cigarsSection: some View {
+        Section {
+            cigarContent()
+        } header: {
+            if !filteredCigars.isEmpty {
+                Text("Cigars (\(filteredCigars.count))")
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var loadingIndicator: some View {
+        HStack {
+            Spacer()
+            ProgressView()
+            Spacer()
+        }
+    }
+    
+    @ViewBuilder
+    private var environmentData: some View {
+        HStack {
+            temperatureView
+            Spacer()
+            humidityView
+        }
+        
+        if let error = viewModel.error {
+            Text(error)
+                .foregroundColor(.red)
+                .font(.caption)
+        }
+    }
+    
+    @ViewBuilder
+    private var temperatureView: some View {
+        if let temp = viewModel.temperature {
+            Label(String(format: "%.1f°F", temp), systemImage: "thermometer")
+                .foregroundColor(viewModel.temperatureStatus.color)
+        } else {
+            Label("--°F", systemImage: "thermometer")
+                .foregroundColor(.secondary)
+        }
+    }
+    
+    @ViewBuilder
+    private var humidityView: some View {
+        if let humidity = viewModel.humidity {
+            Label(String(format: "%.1f%%", humidity), systemImage: "humidity")
+                .foregroundColor(viewModel.humidityStatus.color)
+        } else {
+            Label("--%", systemImage: "humidity")
+                .foregroundColor(.secondary)
+        }
+    }
+    
+    // MARK: - Helper Methods
     private func matches(_ cigar: Cigar, searchTerm: String) -> Bool {
         let searchTerm = searchTerm.lowercased()
         let matchesBrand = cigar.brand?.lowercased().contains(searchTerm) ?? false
@@ -30,24 +224,16 @@ struct HumidorDetailView: View {
         return matchesBrand || matchesName
     }
     
-    private var filteredCigars: [Cigar] {
-        guard !searchText.isEmpty else {
-            return cigars
-        }
-        return cigars.filter { matches($0, searchTerm: searchText) }
-    }
-    
-    // MARK: - View Content Builders
-    @ViewBuilder
     private func cigarContent() -> some View {
-        if filteredCigars.isEmpty {
-            emptyCigarView()
-        } else {
-            cigarList()
+        Group {
+            if filteredCigars.isEmpty {
+                emptyCigarView()
+            } else {
+                cigarList()
+            }
         }
     }
     
-    @ViewBuilder
     private func emptyCigarView() -> some View {
         ContentUnavailableView {
             Label("No Cigars", systemImage: "cabinet")
@@ -57,14 +243,13 @@ struct HumidorDetailView: View {
                 "No cigars match your search")
         } actions: {
             if searchText.isEmpty {
-                Button(action: { showAddCigar = true }) {
+                Button(action: { showingAddCigar = true }) {
                     Text("Add Cigar")
                 }
             }
         }
     }
     
-    @ViewBuilder
     private func cigarList() -> some View {
         ForEach(filteredCigars) { cigar in
             NavigationLink {
@@ -76,174 +261,16 @@ struct HumidorDetailView: View {
         .onDelete(perform: deleteCigars)
     }
     
-    // MARK: - Sensor Content Builders
-    @ViewBuilder
-    private func sensorContent() -> some View {
-        if let sensorId = humidor.sensorId,
-           let sensor = viewModel.sensors.first(where: { $0.id == sensorId }) {
-            sensorList(sensor)
-        } else {
-            emptySensorView()
-        }
-        addSensorButton()
-    }
-    
-    @ViewBuilder
-    private func sensorList(_ sensor: SensorPushDevice) -> some View {
-        NavigationLink(destination: SensorDetailView(sensor: sensor)) {
-            SensorRowView(sensor: sensor)
-        }
-    }
-    
-    @ViewBuilder
-    private func emptySensorView() -> some View {
-        Text("No sensors added")
-            .foregroundStyle(.secondary)
-    }
-    
-    @ViewBuilder
-    private func addSensorButton() -> some View {
-        Button(action: { showAddSensor = true }) {
-            Label("Add Sensor", systemImage: "plus.circle")
-        }
-    }
-    
-    // MARK: - Body
-    var body: some View {
-        List {
-            Section {
-                HumidorStatusView(humidor: humidor)
-            }
-            
-            if let sensorId = humidor.sensorId {
-                Section {
-                    if viewModel.isLoading {
-                        HStack {
-                            Spacer()
-                            ProgressView()
-                            Spacer()
-                        }
-                    } else {
-                        HStack {
-                            if let temp = viewModel.temperature {
-                                Label(String(format: "%.1f°F", temp), systemImage: "thermometer")
-                                    .foregroundColor(viewModel.temperatureStatus.color)
-                            } else {
-                                Label("--°F", systemImage: "thermometer")
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            Spacer()
-                            
-                            if let humidity = viewModel.humidity {
-                                Label(String(format: "%.1f%%", humidity), systemImage: "humidity")
-                                    .foregroundColor(viewModel.humidityStatus.color)
-                            } else {
-                                Label("--%", systemImage: "humidity")
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        
-                        if let error = viewModel.error {
-                            Text(error)
-                                .foregroundColor(.red)
-                                .font(.caption)
-                        }
-                    }
-                } header: {
-                    Text("Environment")
-                }
-            }
-            
-            Section {
-                cigarContent()
-            } header: {
-                if !filteredCigars.isEmpty {
-                    Text("Cigars (\(filteredCigars.count))")
-                }
-            }
-        }
-        .navigationTitle(humidor.effectiveName)
-        .searchable(text: $searchText, prompt: "Search cigars...")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            Menu {
-                Button(action: { showAddCigar = true }) {
-                    Label("Add Cigar", systemImage: "plus")
-                }
-                
-                Button(action: { showEditHumidor = true }) {
-                    Label("Edit Humidor", systemImage: "pencil")
-                }
-                
-                Button(role: .destructive, action: { showDeleteAlert = true }) {
-                    Label("Delete Humidor", systemImage: "trash")
-                }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-            }
-        }
-        .sheet(isPresented: $showAddCigar) {
-            NavigationStack {
-                AddCigarView(humidor: humidor)
-            }
-        }
-        .sheet(isPresented: $showEditHumidor) {
-            NavigationStack {
-                EditHumidorView(humidor: humidor)
-            }
-        }
-        .sheet(isPresented: $showAddSensor) {
-            NavigationStack {
-                SensorPushAuthView()
-            }
-        }
-        .sheet(isPresented: $showSensorSelection) {
-            NavigationStack {
-                SensorSelectionView(selectedSensorId: $humidor.sensorId)
-            }
-        }
-        .alert("Delete Humidor", isPresented: $showDeleteAlert) {
-            Button("Cancel", role: .cancel) { }
-            Button("Delete", role: .destructive, action: deleteHumidor)
-        } message: {
-            Text("Are you sure you want to delete this humidor? This action cannot be undone.")
-        }
-        .onChange(of: humidor.sensorId) { oldValue, newValue in
-            if let sensorId = newValue {
-                Task {
-                    await viewModel.fetchLatestSample(for: sensorId)
-                }
-            }
-        }
-        .task {
-            await viewModel.fetchSensors()
-            if let sensorId = humidor.sensorId {
-                await viewModel.fetchLatestSample(for: sensorId)
-                await viewModel.loadHistoricalData(sensorId: sensorId)
-            }
-        }
-        .refreshable {
-            if let sensorId = humidor.sensorId {
-                await viewModel.fetchLatestSample(for: sensorId)
-            }
-        }
-    }
-    
     // MARK: - Actions
     private func deleteCigars(at offsets: IndexSet) {
-        // Get cigars to delete before modifying the array
         let cigarsToDelete = offsets.map { filteredCigars[$0] }
         
-        // Delete each cigar
         for cigar in cigarsToDelete {
             logger.debug("Deleting cigar: \(cigar.brand ?? "") - \(cigar.name ?? "")")
             modelContext.delete(cigar)
         }
         
-        // Update humidor's cigars array if needed
-        if humidor.cigars?.isEmpty == true {
-            humidor.cigars = []
+        if humidor.effectiveCigars.isEmpty {
             logger.debug("Humidor is now empty")
         }
     }
@@ -251,6 +278,95 @@ struct HumidorDetailView: View {
     private func deleteHumidor() {
         modelContext.delete(humidor)
         dismiss()
+    }
+    
+    private func setupEnvironmentMonitoring() async {
+        // Setup existing SensorPush monitoring
+        await viewModel.fetchSensors()
+        if let sensorId = humidor.sensorId {
+            await viewModel.fetchLatestSample(for: sensorId)
+            await viewModel.loadHistoricalData(sensorId: sensorId)
+        }
+        
+        // Setup HomeKit monitoring if enabled
+        if humidor.homeKitEnabled {
+            await refreshHomeKitData()
+        }
+    }
+    
+    private func refreshEnvironmentData() async {
+        if let sensorId = humidor.sensorId {
+            await viewModel.fetchLatestSample(for: sensorId)
+        }
+    }
+    
+    private func refreshHomeKitData() async {
+        // Get temperature reading
+        if let tempID = humidor.homeKitTemperatureSensorID,
+           let sensor = homeKitManager.temperatureSensors.first(where: { $0.uniqueIdentifier.uuidString == tempID }) {
+            do {
+                currentTemperature = try await homeKitManager.readSensorValue(sensor, type: .temperature)
+            } catch {
+                logger.error("Failed to read temperature: \(error.localizedDescription)")
+            }
+        }
+        
+        // Get humidity reading
+        if let humidityID = humidor.homeKitHumiditySensorID,
+           let sensor = homeKitManager.humiditySensors.first(where: { $0.uniqueIdentifier.uuidString == humidityID }) {
+            do {
+                currentHumidity = try await homeKitManager.readSensorValue(sensor, type: .humidity)
+            } catch {
+                logger.error("Failed to read humidity: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    // Add HomeKit notification setup
+    private func setupCharacteristicNotifications() async {
+        // Set up temperature notifications
+        if let tempID = humidor.homeKitTemperatureSensorID,
+           let sensor = homeKitManager.temperatureSensors.first(where: { $0.uniqueIdentifier.uuidString == tempID }),
+           let service = sensor.services.first(where: { $0.serviceType == HMServiceTypeTemperatureSensor }),
+           let characteristic = service.characteristics.first(where: { $0.characteristicType == HMCharacteristicTypeCurrentTemperature }) {
+            do {
+                try await characteristic.enableNotification(true)
+                
+                NotificationCenter.default.addObserver(
+                    forName: NSNotification.Name("HMCharacteristicValueUpdateNotification"),
+                    object: characteristic,
+                    queue: .main
+                ) { _ in
+                    if let value = characteristic.value as? Double {
+                        currentTemperature = value
+                    }
+                }
+            } catch {
+                print("Failed to enable temperature notifications: \(error.localizedDescription)")
+            }
+        }
+        
+        // Set up humidity notifications
+        if let humidityID = humidor.homeKitHumiditySensorID,
+           let sensor = homeKitManager.humiditySensors.first(where: { $0.uniqueIdentifier.uuidString == humidityID }),
+           let service = sensor.services.first(where: { $0.serviceType == HMServiceTypeHumiditySensor }),
+           let characteristic = service.characteristics.first(where: { $0.characteristicType == HMCharacteristicTypeCurrentRelativeHumidity }) {
+            do {
+                try await characteristic.enableNotification(true)
+                
+                NotificationCenter.default.addObserver(
+                    forName: NSNotification.Name("HMCharacteristicValueUpdateNotification"),
+                    object: characteristic,
+                    queue: .main
+                ) { _ in
+                    if let value = characteristic.value as? Double {
+                        currentHumidity = value
+                    }
+                }
+            } catch {
+                print("Failed to enable humidity notifications: \(error.localizedDescription)")
+            }
+        }
     }
 }
 

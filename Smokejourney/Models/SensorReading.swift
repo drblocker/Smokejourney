@@ -4,14 +4,21 @@ import Foundation
 @Model
 final class SensorReading {
     var timestamp: Date?
-    var temperature: Double?
-    var humidity: Double?
-    var sensor: Sensor?
-    var sensorAsLastReading: Sensor?
+    var value: Double?
+    var type: ReadingType?
+    var humidorPersistentID: String?
     
-    init(timestamp: Date = Date(), temperature: Double? = nil, humidity: Double? = nil) {
+    var sensor: Sensor?
+    
+    init(timestamp: Date = Date(), value: Double, type: ReadingType, humidorPersistentID: String) {
         self.timestamp = timestamp
-        self.temperature = temperature
-        self.humidity = humidity
+        self.value = value
+        self.type = type
+        self.humidorPersistentID = humidorPersistentID
+    }
+    
+    enum ReadingType: Int, Codable {
+        case temperature
+        case humidity
     }
 } 

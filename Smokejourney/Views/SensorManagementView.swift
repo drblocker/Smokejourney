@@ -80,7 +80,7 @@ struct SensorRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(sensor.name)
+                Text(sensor.displayName)
                     .font(.headline)
                 Spacer()
                 StatusIndicator(sensor: sensor)
@@ -104,7 +104,13 @@ struct SensorRowView: View {
                 }
             }
             .font(.caption)
-            .foregroundColor(.secondary)
+            .foregroundStyle(.secondary)
+            
+            if let location = sensor.location {
+                Text(location)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.vertical, 4)
     }

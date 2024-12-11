@@ -6,160 +6,120 @@ struct SensorDetailView: View {
     @StateObject private var viewModel = HumidorEnvironmentViewModel()
     @Environment(\.dismiss) private var dismiss
     
-    @AppStorage private var temperatureOffset: Double
-    @AppStorage private var humidityOffset: Double
+    @State private var temperatureOffset: Double
+    @State private var humidityOffset: Double
     
-    init(sensor: SensorPushDevice) {
+    private let defaults: UserDefaults
+    
+    init(sensor: SensorPushDevice, defaults: UserDefaults = .standard) {
         self.sensor = sensor
-        _temperatureOffset = AppStorage(wrappedValue: 0.0, "tempOffset_\(sensor.id)")
-        _humidityOffset = AppStorage(wrappedValue: 0.0, "humidityOffset_\(sensor.id)")
+        self.defaults = defaults
+        
+        let tempKey = "tempOffset_\(sensor.id)"
+        let humidityKey = "humidityOffset_\(sensor.id)"
+        
+        defaults.register(defaults: [
+            tempKey: 0.0,
+            humidityKey: 0.0
+        ])
+        
+        self._temperatureOffset = State(initialValue: defaults.double(forKey: tempKey))
+        self._humidityOffset = State(initialValue: defaults.double(forKey: humidityKey))
     }
     
     var body: some View {
-        List {
-            Section {
-                HStack {
-                    Text("Name")
-                    Spacer()
-                    Text(sensor.name)
-                        .foregroundColor(.secondary)
-                }
-                
-                HStack {
-                    Text("Device ID")
-                    Spacer()
-                    Text(sensor.deviceId)
-                        .foregroundColor(.secondary)
-                }
-                
-                HStack {
-                    Text("Type")
-                    Spacer()
-                    Text(sensor.type)
-                        .foregroundColor(.secondary)
-                }
-                
-                HStack {
-                    Text("Status")
-                    Spacer()
-                    Text(sensor.active ? "Active" : "Inactive")
-                        .foregroundColor(sensor.active ? .green : .red)
-                }
-            } header: {
-                Text("Sensor Information")
-            }
-            
-            Section {
-                VStack(alignment: .leading) {
-                    Text("Temperature Offset")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    HStack {
-                        Slider(value: $temperatureOffset, in: -10...10, step: 0.5)
-                        Text(String(format: "%.1f°F", temperatureOffset))
-                            .monospacedDigit()
-                            .frame(width: 60)
-                    }
-                }
-                
-                VStack(alignment: .leading) {
-                    Text("Humidity Offset")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    HStack {
-                        Slider(value: $humidityOffset, in: -20...20, step: 1)
-                        Text(String(format: "%.0f%%", humidityOffset))
-                            .monospacedDigit()
-                            .frame(width: 60)
-                    }
-                }
-                
-                Button(action: resetOffsets) {
-                    Text("Reset Calibration")
-                }
-                .foregroundColor(.red)
-            } header: {
-                Text("Calibration")
-            } footer: {
-                Text("Offsets are applied to sensor readings to account for any calibration differences.")
-            }
-            
-            Section {
-                HStack {
-                    // Battery status
-                    HStack {
-                        Image(systemName: batteryIcon(sensor.batteryVoltage))
-                            .foregroundColor(batteryColor(sensor.batteryVoltage))
-                        Text(formatBattery(sensor.batteryVoltage))
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Spacer()
-                    
-                    // Signal strength
-                    HStack {
-                        Image(systemName: signalIcon(sensor.rssi))
-                            .foregroundColor(signalColor(sensor.rssi))
-                        Text(formatSignal(sensor.rssi))
-                            .foregroundColor(.secondary)
-                    }
-                }
-            } header: {
-                Text("Health")
-            }
-            
-            if !viewModel.historicalData.isEmpty {
-                Section {
-                    VStack {
-                        Chart(viewModel.historicalData, id: \.timestamp) { data in
-                            LineMark(
-                                x: .value("Time", data.timestamp),
-                                y: .value("Temperature", data.temperature + temperatureOffset)
-                            )
-                            .foregroundStyle(.red)
-                            
-                            LineMark(
-                                x: .value("Time", data.timestamp),
-                                y: .value("Humidity", data.humidity + humidityOffset)
-                            )
-                            .foregroundStyle(.blue)
-                        }
-                        .frame(height: 180)
-                        
-                        HStack(spacing: 16) {
-                            HStack(spacing: 4) {
-                                Circle()
-                                    .fill(.red)
-                                    .frame(width: 8, height: 8)
-                                Text("Temperature")
-                                    .font(.caption)
-                            }
-                            
-                            HStack(spacing: 4) {
-                                Circle()
-                                    .fill(.blue)
-                                    .frame(width: 8, height: 8)
-                                Text("Humidity")
-                                    .font(.caption)
-                            }
-                        }
-                        .padding(.top, 4)
-                    }
-                } header: {
-                    Text("Last 24 Hours")
+        ScrollView {
+            LazyVStack {
+                sensorInformationCard
+                calibrationCard
+                healthCard
+                if !viewModel.historicalData.isEmpty {
+                    historicalDataCard
                 }
             }
+            .padding(.horizontal)
         }
         .navigationTitle("Sensor Details")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await viewModel.fetchLatestSample(for: sensor.id)
         }
+        .onChange(of: temperatureOffset) { newValue in
+            defaults.set(newValue, forKey: "tempOffset_\(sensor.id)")
+        }
+        .onChange(of: humidityOffset) { newValue in
+            defaults.set(newValue, forKey: "humidityOffset_\(sensor.id)")
+        }
+    }
+    
+    private var sensorInformationCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Sensor Information")
+                .font(.headline)
+            
+            infoRow(title: "Name", value: sensor.displayName)
+            infoRow(title: "Device ID", value: sensor.deviceId)
+            infoRow(title: "Status", value: sensor.active ? "Active" : "Inactive", 
+                   color: sensor.active ? .green : .red)
+        }
+        .padding()
+        .background(Color(.secondarySystemGroupedBackground))
+        .cornerRadius(10)
+    }
+    
+    private var calibrationCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Calibration")
+                .font(.headline)
+            
+            calibrationSlider(title: "Temperature Offset",
+                            value: $temperatureOffset,
+                            range: -10...10,
+                            step: 0.5,
+                            format: "%.1f°F")
+            
+            calibrationSlider(title: "Humidity Offset",
+                            value: $humidityOffset,
+                            range: -20...20,
+                            step: 1.0,
+                            format: "%.0f%%")
+            
+            Button(action: resetOffsets) {
+                Text("Reset Calibration")
+                    .foregroundColor(.red)
+            }
+        }
+        .padding()
+        .background(Color(.secondarySystemGroupedBackground))
+        .cornerRadius(10)
+    }
+    
+    private func infoRow(title: String, value: String, color: Color = .secondary) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Text(value)
+                .foregroundColor(color)
+        }
+    }
+    
+    private func calibrationSlider(title: String, value: Binding<Double>, range: ClosedRange<Double>, step: Double, format: String) -> some View {
+        VStack(alignment: .leading) {
+            Text(title)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            HStack {
+                Slider(value: value, in: range, step: step)
+                Text(String(format: format, value.wrappedValue))
+                    .monospacedDigit()
+                    .frame(width: 60)
+            }
+        }
     }
     
     private func resetOffsets() {
-        temperatureOffset = 0
-        humidityOffset = 0
+        temperatureOffset = 0.0
+        humidityOffset = 0.0
     }
     
     // Helper functions from SensorRowView
@@ -208,4 +168,91 @@ struct SensorDetailView: View {
         default: return .green
         }
     }
-} 
+    
+    private var healthCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Health")
+                .font(.headline)
+            
+            HStack {
+                // Battery status
+                HStack {
+                    Image(systemName: batteryIcon(sensor.batteryVoltage))
+                        .foregroundColor(batteryColor(sensor.batteryVoltage))
+                    Text(formatBattery(sensor.batteryVoltage))
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                // Signal strength
+                HStack {
+                    Image(systemName: signalIcon(sensor.rssi))
+                        .foregroundColor(signalColor(sensor.rssi))
+                    Text(formatSignal(sensor.rssi))
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding()
+        .background(Color(.secondarySystemGroupedBackground))
+        .cornerRadius(10)
+    }
+    
+    private var historicalDataCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Last 24 Hours")
+                .font(.headline)
+            
+            VStack {
+                Chart(viewModel.historicalData, id: \.timestamp) { data in
+                    LineMark(
+                        x: .value("Time", data.timestamp),
+                        y: .value("Temperature", data.temperature + temperatureOffset)
+                    )
+                    .foregroundStyle(.red)
+                    
+                    LineMark(
+                        x: .value("Time", data.timestamp),
+                        y: .value("Humidity", data.humidity + humidityOffset)
+                    )
+                    .foregroundStyle(.blue)
+                }
+                .frame(height: 180)
+                
+                HStack(spacing: 16) {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(.red)
+                            .frame(width: 8, height: 8)
+                        Text("Temperature")
+                            .font(.caption)
+                    }
+                    
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(.blue)
+                            .frame(width: 8, height: 8)
+                        Text("Humidity")
+                            .font(.caption)
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
+        .padding()
+        .background(Color(.secondarySystemGroupedBackground))
+        .cornerRadius(10)
+    }
+}
+
+private struct UserDefaultsKey: EnvironmentKey {
+    static let defaultValue = UserDefaults.standard
+}
+
+extension EnvironmentValues {
+    var userDefaults: UserDefaults {
+        get { self[UserDefaultsKey.self] }
+        set { self[UserDefaultsKey.self] = newValue }
+    }
+}

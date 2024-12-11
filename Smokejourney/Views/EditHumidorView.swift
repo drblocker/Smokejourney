@@ -5,6 +5,7 @@ struct EditHumidorView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var humidor: Humidor
     @StateObject private var sensorViewModel = HumidorEnvironmentViewModel()
+    @EnvironmentObject private var homeKitManager: HomeKitService
     
     @State private var name: String
     @State private var capacityString: String
@@ -12,6 +13,14 @@ struct EditHumidorView: View {
     @State private var showAlert = false
     @State private var alertMessage = ""
     @State private var showSensorSelection = false
+    @State private var selectedSensorType: SensorType?
+    @State private var selectedTempSensorID: String?
+    @State private var selectedHumiditySensorID: String?
+    
+    enum SensorType {
+        case homeKit
+        case sensorPush
+    }
     
     // Computed property to handle capacity validation
     private var capacity: Int {
@@ -40,19 +49,71 @@ struct EditHumidorView: View {
                     TextField("Location", text: $location)
                 }
                 
-                Section("Environment Sensor") {
+                Section("Environment Monitoring") {
+                    // SensorPush
                     if let sensorId = humidor.sensorId,
                        let sensor = sensorViewModel.sensors.first(where: { $0.id == sensorId }) {
-                        HStack {
-                            Text(sensor.name)
-                            Spacer()
-                            Button("Change") {
-                                showSensorSelection = true
-                            }
-                        }
+                        Text(sensor.displayName)
+                            .foregroundStyle(.secondary)
                     } else {
-                        Button("Select Sensor") {
+                        Button("Select SensorPush") {
+                            selectedSensorType = .sensorPush
                             showSensorSelection = true
+                        }
+                    }
+                    
+                    // HomeKit
+                    if homeKitManager.isAuthorized {
+                        Toggle("Enable HomeKit", isOn: $humidor.homeKitEnabled)
+                        
+                        if humidor.homeKitEnabled {
+                            // Temperature Sensor Selection
+                            HStack {
+                                Text("Temperature Sensor")
+                                Spacer()
+                                if let sensorID = humidor.homeKitTemperatureSensorID,
+                                   let sensor = homeKitManager.temperatureSensors.first(where: { $0.uniqueIdentifier.uuidString == sensorID }) {
+                                    Text(sensor.name)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Button("Select") {
+                                        selectedSensorType = .homeKit
+                                        showSensorSelection = true
+                                    }
+                                }
+                            }
+                            
+                            if let _ = humidor.homeKitTemperatureSensorID {
+                                Button(role: .destructive) {
+                                    humidor.homeKitTemperatureSensorID = nil
+                                } label: {
+                                    Label("Remove Temperature Sensor", systemImage: "trash")
+                                }
+                            }
+                            
+                            // Humidity Sensor Selection
+                            HStack {
+                                Text("Humidity Sensor")
+                                Spacer()
+                                if let sensorID = humidor.homeKitHumiditySensorID,
+                                   let sensor = homeKitManager.humiditySensors.first(where: { $0.uniqueIdentifier.uuidString == sensorID }) {
+                                    Text(sensor.name)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Button("Select") {
+                                        selectedSensorType = .homeKit
+                                        showSensorSelection = true
+                                    }
+                                }
+                            }
+                            
+                            if let _ = humidor.homeKitHumiditySensorID {
+                                Button(role: .destructive) {
+                                    humidor.homeKitHumiditySensorID = nil
+                                } label: {
+                                    Label("Remove Humidity Sensor", systemImage: "trash")
+                                }
+                            }
                         }
                     }
                 }
@@ -81,7 +142,27 @@ struct EditHumidorView: View {
             }
             .sheet(isPresented: $showSensorSelection) {
                 NavigationStack {
-                    SensorSelectionView(selectedSensorId: $humidor.sensorId)
+                    if selectedSensorType == .sensorPush {
+                        SensorSelectionView(selectedSensorId: $humidor.sensorId)
+                    } else {
+                        HumidorSensorSelectionView(
+                            humidor: humidor,
+                            selectedTempSensorID: $selectedTempSensorID,
+                            selectedHumiditySensorID: $selectedHumiditySensorID
+                        )
+                    }
+                }
+            }
+            .onChange(of: selectedTempSensorID) {
+                if selectedTempSensorID != nil {
+                    humidor.homeKitEnabled = true
+                    humidor.homeKitTemperatureSensorID = selectedTempSensorID
+                }
+            }
+            .onChange(of: selectedHumiditySensorID) {
+                if selectedHumiditySensorID != nil {
+                    humidor.homeKitEnabled = true
+                    humidor.homeKitHumiditySensorID = selectedHumiditySensorID
                 }
             }
             .task {

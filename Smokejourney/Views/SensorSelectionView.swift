@@ -1,10 +1,14 @@
 import SwiftUI
-import SwiftData
 
 struct SensorSelectionView: View {
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var viewModel = HumidorEnvironmentViewModel()
+    @StateObject private var viewModel: HumidorEnvironmentViewModel
     @Binding var selectedSensorId: String?
+    
+    init(selectedSensorId: Binding<String?>) {
+        self._selectedSensorId = selectedSensorId
+        self._viewModel = StateObject(wrappedValue: HumidorEnvironmentViewModel())
+    }
     
     var body: some View {
         List {
@@ -23,7 +27,7 @@ struct SensorSelectionView: View {
                         }) {
                             HStack {
                                 VStack(alignment: .leading) {
-                                    Text(sensor.name)
+                                    Text(sensor.displayName)
                                         .font(.headline)
                                     Text("ID: \(sensor.deviceId)")
                                         .font(.caption)

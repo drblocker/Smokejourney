@@ -6,21 +6,23 @@ import os.log
 final class Humidor {
     private static let logger = Logger(subsystem: "com.smokejourney", category: "Humidor")
     
+    // MARK: - Properties
     var name: String?
     var capacity: Int?
     var humidorDescription: String?
     var location: String?
     var createdAt: Date?
+    @Relationship(deleteRule: .cascade)
     var cigars: [Cigar]?
     var sensorId: String?
     
-    @Relationship(.cascade)
+    @Relationship(deleteRule: .cascade)
     var sensors: [Sensor]?
     
     var targetHumidity: Double?
     var targetTemperature: Double?
     
-    // HomeKit properties
+    // MARK: - HomeKit Properties
     var homeKitEnabled: Bool = false
     var homeKitRoomName: String?
     var homeKitAccessoryIdentifier: String?
@@ -30,6 +32,19 @@ final class Humidor {
     @Relationship(deleteRule: .cascade)
     var environmentSettings: EnvironmentSettings?
     
+    // MARK: - Constants
+    private enum Constants {
+        static let defaultCapacity = 25
+        static let defaultName = "Unnamed Humidor"
+        static let defaultDescription = "No description provided"
+        static let capacityThreshold = 0.9
+        static let defaultMaxTemp = 72.0
+        static let defaultMinTemp = 65.0
+        static let defaultMaxHumidity = 72.0
+        static let defaultMinHumidity = 65.0
+    }
+    
+    // MARK: - Initialization
     init(name: String, capacity: Int, description: String? = nil, location: String? = nil) {
         self.name = name
         self.capacity = capacity
@@ -40,23 +55,17 @@ final class Humidor {
         self.sensorId = nil
     }
     
-    init() {
-        self.createdAt = Date()
-        self.cigars = []
-        self.capacity = 25  // Default capacity
-    }
-    
     // MARK: - Computed Properties
     var effectiveName: String {
-        name ?? "Unnamed Humidor"
+        name ?? Constants.defaultName
     }
     
     var effectiveCapacity: Int {
-        capacity ?? 25
+        capacity ?? Constants.defaultCapacity
     }
     
     var effectiveDescription: String {
-        humidorDescription ?? "No description provided"
+        humidorDescription ?? Constants.defaultDescription
     }
     
     var effectiveCigars: [Cigar] {
@@ -68,9 +77,7 @@ final class Humidor {
     }
     
     var totalCigarCount: Int {
-        cigars?.reduce(into: 0) { total, cigar in
-            total += cigar.totalQuantity
-        } ?? 0
+        effectiveCigars.reduce(0) { $0 + $1.totalQuantity }
     }
     
     var capacityPercentage: Double {
@@ -78,22 +85,30 @@ final class Humidor {
     }
     
     var isNearCapacity: Bool {
-        capacityPercentage >= 0.9 // 90% full
+        capacityPercentage >= Constants.capacityThreshold
     }
     
     var effectiveMaxTemperature: Double {
-        environmentSettings?.maxTemperature ?? 72.0
+        environmentSettings?.maxTemperature ?? Constants.defaultMaxTemp
     }
     
     var effectiveMinTemperature: Double {
-        environmentSettings?.minTemperature ?? 65.0
+        environmentSettings?.minTemperature ?? Constants.defaultMinTemp
     }
     
     var effectiveMaxHumidity: Double {
-        environmentSettings?.maxHumidity ?? 72.0
+        environmentSettings?.maxHumidity ?? Constants.defaultMaxHumidity
     }
     
     var effectiveMinHumidity: Double {
-        environmentSettings?.minHumidity ?? 65.0
+        environmentSettings?.minHumidity ?? Constants.defaultMinHumidity
     }
+    
+    // Add HomeKit sensor identifiers
+    var temperatureSensorID: String?
+    var humiditySensorID: String?
+    
+    // Add computed properties for current readings
+    @Transient var currentTemperature: Double?
+    @Transient var currentHumidity: Double?
 } 

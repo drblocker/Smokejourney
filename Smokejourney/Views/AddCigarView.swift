@@ -61,25 +61,23 @@ struct AddCigarView: View {
     private var isValidCustomName: Bool {
         guard isCustomName else { return true }
         
-        // Name cannot be empty
-        if customName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        let customName = customName.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        if customName.isEmpty {
             customNameError = "Name cannot be empty"
             return false
         }
         
-        // Name should be at least 2 characters
         if customName.count < 2 {
             customNameError = "Name must be at least 2 characters"
             return false
         }
         
-        // Name should not be too long (arbitrary limit of 50 characters)
         if customName.count > 50 {
             customNameError = "Name must be less than 50 characters"
             return false
         }
         
-        // Clear any previous error
         customNameError = nil
         return true
     }
@@ -89,28 +87,19 @@ struct AddCigarView: View {
         (isCustomName ? !isValidCustomName : name.isEmpty) || 
         wrapperType.isEmpty || 
         size.isEmpty || 
-        humidor.effectiveCigars.count >= humidor.effectiveCapacity
+        (humidor.effectiveCigars.count >= humidor.effectiveCapacity)
     }
     
     var filteredBrands: [CigarBrand] {
-        if searchText.isEmpty {
-            return brands.brands
-        }
-        return brands.searchBrands(searchText)
+        searchText.isEmpty ? brands.brands : brands.searchBrands(searchText)
     }
     
     var filteredSizes: [CigarSize] {
-        if sizeSearchText.isEmpty {
-            return sizes.sizes
-        }
-        return sizes.searchSizes(sizeSearchText)
+        sizeSearchText.isEmpty ? sizes.sizes : sizes.searchSizes(sizeSearchText)
     }
     
     var filteredWrappers: [CigarWrapper] {
-        if wrapperSearchText.isEmpty {
-            return wrappers.wrappers
-        }
-        return wrappers.searchWrappers(wrapperSearchText)
+        wrapperSearchText.isEmpty ? wrappers.wrappers : wrappers.searchWrappers(wrapperSearchText)
     }
     
     var filteredStrengths: [CigarStrengthDetail] {
@@ -397,11 +386,9 @@ struct AddCigarView: View {
             
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
-                    if validateAndSave() {
-                        dismiss()
-                    }
+                    saveCigar()
                 }
-                .disabled(!isValid)
+                .disabled(isSaveDisabled)
             }
         }
         .sheet(isPresented: $showBrandPicker) {
@@ -500,57 +487,30 @@ struct AddCigarView: View {
     }
     
     private func saveCigar() {
+        let effectiveName = isCustomName ? customName : name
         let cigar = Cigar(
             brand: brand,
-            name: isCustomName ? customName.trimmingCharacters(in: .whitespacesAndNewlines) : name,
+            name: effectiveName,
             wrapperType: wrapperType,
             size: size,
             strength: strength
         )
         
-        let purchase = CigarPurchase(
-            quantity: selectedQuantity,
-            price: Decimal(string: priceString),
-            vendor: vendor.isEmpty ? nil : vendor,
-            url: url.isEmpty ? nil : url
-        )
-        
-        purchase.cigar = cigar
-        if cigar.purchases == nil {
-            cigar.purchases = []
+        if let price = Decimal(string: priceString), price > 0 {
+            let purchase = CigarPurchase(
+                quantity: selectedQuantity,
+                price: price,
+                vendor: vendor,
+                url: url
+            )
+            cigar.purchases = [purchase]
         }
-        cigar.purchases?.append(purchase)
         
-        cigar.humidor = humidor
+        // Initialize cigars array if nil
         if humidor.cigars == nil {
             humidor.cigars = []
         }
         humidor.cigars?.append(cigar)
-        
         dismiss()
-    }
-    
-    private func validateAndSave() -> Bool {
-        // Validate quantity
-        guard selectedQuantity > 0 else { return false }
-        
-        // Validate price if entered
-        if !priceString.isEmpty {
-            guard let _ = Decimal(string: priceString) else { return false }
-        }
-        
-        // Validate URL if entered
-        if !url.isEmpty {
-            guard URL(string: url) != nil else { return false }
-        }
-        
-        // Check humidor capacity
-        if humidor.effectiveCigars.count + selectedQuantity > humidor.effectiveCapacity {
-            return false
-        }
-        
-        // If all validations pass, save the cigar
-        saveCigar()
-        return true
     }
 } 

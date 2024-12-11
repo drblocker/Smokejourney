@@ -37,6 +37,10 @@ struct IntegrationsSettingsView: View {
                     }
                 
                 if homeKitEnabled {
+                    NavigationLink("Select Sensors") {
+                        HomeKitSensorSelectionView()
+                    }
+                    
                     Button("Configure HomeKit") {
                         showingHomeKitSetup = true
                     }
@@ -58,12 +62,13 @@ struct IntegrationsSettingsView: View {
         }
         .sheet(isPresented: $showingHomeKitSetup) {
             NavigationStack {
-                HomeKitSetupView { success in
+                HomeKitSetupView(onComplete: { success in
                     if !success {
                         homeKitEnabled = false
                     }
                     showingHomeKitSetup = false
-                }
+                })
+                .environmentObject(HomeKitService.shared)
             }
         }
         .alert("Error", isPresented: $showingError) {
