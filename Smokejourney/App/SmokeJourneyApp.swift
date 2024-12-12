@@ -20,150 +20,55 @@ extension HMHomeManagerAuthorizationStatus: CustomDebugStringConvertible {
 }
 
 @main
-struct SmokeJourneyApp: App {
-    @StateObject private var cloudKitManager = CloudKitManager.shared
-    @StateObject private var homeKitManager = HomeKitService.shared
-    @UIApplicationDelegateAdaptor private var appDelegate: AppDelegate
+struct SmokejourneyApp: App {
+    @StateObject private var homeKitManager = HomeKitService()
+    @StateObject private var sensorPushManager = SensorPushService()
+    @StateObject private var authManager = AuthenticationManager.shared
     
-    private let logger = Logger(subsystem: "com.jason.smokejourney", category: "HomeKit")
-    let container: ModelContainer
-    
-    init() {
-        // Create a temporary container to avoid capture issues
-        let tempContainer: ModelContainer
+    var sharedModelContainer: ModelContainer = {
+        let schema = Schema([
+            Humidor.self,
+            Cigar.self,
+            SensorReading.self,
+            EnvironmentSettings.self
+        ])
+        let modelConfiguration = ModelConfiguration(schema: schema, cloudKitDatabase: .automatic)
         
         do {
-            // Define schema
-            let schema = Schema([
-                User.self,
-                Cigar.self,
-                CigarPurchase.self,
-                Review.self,
-                SmokingSession.self,
-                Humidor.self,
-                EnvironmentSettings.self,
-                Sensor.self,
-                SensorReading.self
-            ])
-            
-            // Configure SwiftData with CloudKit
-            let modelConfiguration = ModelConfiguration(
-                "Default",
-                schema: schema,
-                isStoredInMemoryOnly: false,
-                allowsSave: true,
-                groupContainer: .identifier("group.com.jason.smokejourney"),
-                cloudKitDatabase: .private(
-                    "iCloud.com.jason.smokejourney"
-                )
-            )
-            
-            // Create container
-            tempContainer = try ModelContainer(
-                for: schema,
-                configurations: [modelConfiguration]
-            )
-            
+            return try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
-            fatalError("Failed to configure SwiftData: \(error.localizedDescription)")
+            fatalError("Could not create ModelContainer: \(error)")
         }
-        
-        // Assign to instance property
-        self.container = tempContainer
-    }
+    }()
     
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .modelContainer(container)
-                .environmentObject(cloudKitManager)
-                .environmentObject(homeKitManager)
-                .environmentObject(SensorPushService.shared)
-                .task {
-                    do {
-                        // First initialize CloudKit
-                        try await cloudKitManager.setupCloudKit()
-                        
-                        // Then initialize HomeKit with retries
-                        try await verifyHomeKitAuthorization()
-                    } catch {
-                        print("Service initialization error: \(error.localizedDescription)")
+            TabView {
+                HumidorView()
+                    .tabItem {
+                        Label("Humidors", systemImage: "cabinet")
                     }
-                }
-        }
-    }
-    
-    private enum AuthorizationError: LocalizedError {
-        case timeout
-        case authorizationFailed
-        case unknown(Error)
-        
-        var errorDescription: String? {
-            switch self {
-            case .timeout:
-                return "HomeKit authorization timed out"
-            case .authorizationFailed:
-                return "Failed to authorize HomeKit access"
-            case .unknown(let error):
-                return error.localizedDescription
-            }
-        }
-    }
-    
-    private func verifyHomeKitAuthorization() async throws {
-        let maxRetries = 3
-        var currentTry = 0
-        
-        logger.debug("Starting HomeKit authorization verification")
-        logger.debug("Current authorization status: \(String(describing: homeKitManager.authorizationStatus))")
-        logger.debug("Is authorized: \(homeKitManager.isAuthorized)")
-        
-        while currentTry < maxRetries {
-            do {
-                logger.debug("Attempt \(currentTry + 1) of \(maxRetries)")
                 
-                try await withTimeout(seconds: 5) {
-                    logger.debug("Checking authorization with timeout")
-                    await homeKitManager.checkAuthorization()
-                    
-                    // Add delay to allow HomeKit to fully initialize
-                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-                    
-                    logger.debug("Authorization check completed")
-                    logger.debug("Status contains authorized: \(self.homeKitManager.authorizationStatus.contains(.authorized))")
-                }
-                
-                // Verify authorization was successful
-                if homeKitManager.authorizationStatus.contains(.authorized) {
-                    logger.notice("🟢 HomeKit successfully authorized")
-                    if let home = homeKitManager.currentHome {
-                        logger.debug("Primary home: \(home.name)")
-                    } else {
-                        logger.debug("No home available yet")
+                ClimateView()
+                    .tabItem {
+                        Label("Climate", systemImage: "thermometer")
                     }
-                    return
-                }
                 
-                currentTry += 1
-                if currentTry < maxRetries {
-                    logger.warning("⚠️ Authorization attempt \(currentTry) failed")
-                    logger.debug("Status: \(String(describing: homeKitManager.authorizationStatus))")
-                    logger.debug("Waiting before retry...")
-                    try await Task.sleep(nanoseconds: 1_000_000_000)
-                }
-            } catch is TimeoutError {
-                currentTry += 1
-                logger.error("🔴 Authorization timeout on attempt \(currentTry)")
-                logger.debug("Last known status: \(String(describing: homeKitManager.authorizationStatus))")
-            } catch {
-                logger.error("🔴 Unexpected error: \(error.localizedDescription)")
-                throw AuthorizationError.unknown(error)
+                StatisticsView()
+                    .tabItem {
+                        Label("Statistics", systemImage: "chart.bar.fill")
+                    }
+                
+                ProfileView()
+                    .tabItem {
+                        Label("Profile", systemImage: "person.circle")
+                    }
             }
+            .environmentObject(homeKitManager)
+            .environmentObject(sensorPushManager)
+            .environmentObject(authManager)
+            .modelContainer(sharedModelContainer)
         }
-        
-        logger.error("🔴 Failed to authorize after \(maxRetries) attempts")
-        logger.error("Final status: \(String(describing: homeKitManager.authorizationStatus))")
-        throw AuthorizationError.authorizationFailed
     }
 }
 

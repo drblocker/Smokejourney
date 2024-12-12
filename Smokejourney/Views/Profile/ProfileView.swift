@@ -2,79 +2,95 @@ import SwiftUI
 import SwiftData
 
 struct ProfileView: View {
-    @StateObject private var authManager = AuthenticationManager.shared
+    @AppStorage("isSignedIn") private var isSignedIn = false
     @Environment(\.modelContext) private var modelContext
-    @Query private var users: [User]
-    @State private var showingLogoutAlert = false
-    @State private var showingSettings = false
+    @StateObject private var authManager = AuthenticationManager.shared
+    @State private var showSignOut = false
     
     var body: some View {
-        List {
-            // User Info Section
-            Section {
-                if let user = users.first {
-                    ProfileHeader(user: user)
+        NavigationStack {
+            List {
+                if authManager.isAuthenticated {
+                    // User Info Section
+                    Section {
+                        if let user = authManager.currentUser {
+                            UserInfoRow(user: user)
+                        }
+                    }
+                    
+                    // Settings Section
+                    Section {
+                        NavigationLink("Sensors") {
+                            SensorManagementView()
+                        }
+                        
+                        NavigationLink("Environment Settings") {
+                            EnvironmentSettingsView()
+                        }
+                        
+                        NavigationLink("Notifications") {
+                            NotificationSettingsView()
+                        }
+                    }
+                    
+                    // Sign Out Section
+                    Section {
+                        Button(role: .destructive) {
+                            showSignOut = true
+                        } label: {
+                            Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                        }
+                    }
                 } else {
-                    Text("No user information available")
-                        .foregroundColor(.secondary)
+                    // Sign In Section
+                    Section {
+                        SignInView()
+                    }
                 }
             }
-            
-            // Settings Section
-            Section {
-                NavigationLink {
-                    SettingsView()
-                } label: {
-                    Label("Settings", systemImage: "gear")
+            .navigationTitle("Profile")
+            .confirmationDialog(
+                "Are you sure you want to sign out?",
+                isPresented: $showSignOut,
+                titleVisibility: .visible
+            ) {
+                Button("Sign Out", role: .destructive) {
+                    Task {
+                        await authManager.signOut()
+                    }
                 }
-                
-                NavigationLink {
-                    DataManagementView()
-                } label: {
-                    Label("Data Management", systemImage: "externaldrive")
-                }
-                
-                NavigationLink {
-                    AboutView()
-                } label: {
-                    Label("About", systemImage: "info.circle")
-                }
+                Button("Cancel", role: .cancel) { }
             }
-            
-            // Sign Out Section
-            Section {
-                Button(role: .destructive) {
-                    showingLogoutAlert = true
-                } label: {
-                    Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
-                }
-            }
-        }
-        .navigationTitle("Profile")
-        .alert("Sign Out", isPresented: $showingLogoutAlert) {
-            Button("Cancel", role: .cancel) { }
-            Button("Sign Out", role: .destructive) {
-                Task {
-                    await signOut()
-                }
-            }
-        } message: {
-            Text("Are you sure you want to sign out?")
         }
     }
+}
+
+// Helper Views
+struct UserInfoRow: View {
+    let user: User
     
-    private func signOut() async {
-        do {
-            // Clear user data
-            for user in users {
-                modelContext.delete(user)
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text(user.displayName)
+                .font(.headline)
+            Text(user.email)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+struct SignInView: View {
+    @StateObject private var authManager = AuthenticationManager.shared
+    
+    var body: some View {
+        Button {
+            Task {
+                await authManager.signIn()
             }
-            try modelContext.save()
-            
-            // Sign out through auth manager
-            try await authManager.signOut()
-        } catch {
-            print("Error signing out: \(error)")
+        } label: {
+            Label("Sign in with Apple", systemImage: "apple.logo")
         }
     }
 }

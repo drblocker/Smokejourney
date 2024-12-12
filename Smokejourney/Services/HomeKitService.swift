@@ -60,7 +60,7 @@ final class HomeKitService: NSObject, ObservableObject {
     }
     
     // MARK: - Initialization
-    override private init() {
+    override public init() {
         self.homeManager = HMHomeManager()
         super.init()
         self.homeManager.delegate = self
@@ -410,6 +410,25 @@ final class HomeKitService: NSObject, ObservableObject {
     public func refreshState() async {
         self.isInitialized = false
         await checkAuthorization()
+    }
+    
+    @MainActor
+    func refreshCharacteristics() async {
+        // Refresh temperature sensors
+        for sensor in temperatureSensors {
+            if let service = sensor.services.first(where: { $0.serviceType == HMServiceTypeTemperatureSensor }),
+               let characteristic = service.characteristics.first(where: { $0.characteristicType == HMCharacteristicTypeCurrentTemperature }) {
+                try? await characteristic.readValue()
+            }
+        }
+        
+        // Refresh humidity sensors
+        for sensor in humiditySensors {
+            if let service = sensor.services.first(where: { $0.serviceType == HMServiceTypeHumiditySensor }),
+               let characteristic = service.characteristics.first(where: { $0.characteristicType == HMCharacteristicTypeCurrentRelativeHumidity }) {
+                try? await characteristic.readValue()
+            }
+        }
     }
 }
 

@@ -55,6 +55,13 @@ final class Humidor {
         self.sensorId = nil
     }
     
+    convenience init() {
+        self.init(
+            name: Constants.defaultName,
+            capacity: Constants.defaultCapacity
+        )
+    }
+    
     // MARK: - Computed Properties
     var effectiveName: String {
         name ?? Constants.defaultName

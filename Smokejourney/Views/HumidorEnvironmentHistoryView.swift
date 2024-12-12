@@ -9,20 +9,6 @@ struct DataPoint: Identifiable {
     let humidity: Double
 }
 
-enum ChartType: String, CaseIterable {
-    case line = "Line"
-    case scatter = "Scatter"
-    case bar = "Bar"
-    
-    var icon: String {
-        switch self {
-        case .line: return "chart.line.uptrend.xyaxis"
-        case .scatter: return "chart.scatter"
-        case .bar: return "chart.bar"
-        }
-    }
-}
-
 // MARK: - Analysis Section View
 struct AnalysisSectionView: View {
     let viewModel: HumidorEnvironmentViewModel
@@ -69,199 +55,153 @@ struct EnvironmentStatisticsView: View {
     }
 }
 
-struct HumidorEnvironmentHistoryView: View {
-    @StateObject private var viewModel = HumidorEnvironmentViewModel()
-    let humidor: Humidor
-    @State private var selectedTimeRange: TimeRange = .day
-    @State private var selectedDataPoint: DataPoint?
-    @State private var chartType: ChartType = .line
-    
-    var body: some View {
-        List {
-            // Time Range and Chart Type Selection
-            Section {
-                TimeRangeSelectionView(
-                    selectedTimeRange: $selectedTimeRange,
-                    chartType: $chartType
-                )
-            }
-            
-            // Temperature Chart
-            Section("Temperature History") {
-                TemperatureChartView(
-                    viewModel: viewModel,
-                    chartType: chartType,
-                    selectedDataPoint: $selectedDataPoint,
-                    selectedTimeRange: selectedTimeRange
-                )
-            }
-            
-            // Analysis Section
-            Section("Analysis") {
-                AnalysisSectionView(viewModel: viewModel)
-            }
-        }
-        .navigationTitle("Environment History")
-        .onChange(of: selectedTimeRange) {
-            if let sensorId = humidor.sensorId {
-                Task {
-                    await viewModel.loadHistoricalData(for: selectedTimeRange, sensorId: sensorId)
-                }
-            }
-        }
-        .task {
-            if let sensorId = humidor.sensorId {
-                await viewModel.loadHistoricalData(for: selectedTimeRange, sensorId: sensorId)
-            }
-        }
-    }
+// MARK: - View Models and Types
+struct ChartConfiguration {
+    var timeRange: TimeRange
+    var chartType: ChartType
 }
 
 // MARK: - Supporting Views
-struct TimeRangeSelectionView: View {
-    @Binding var selectedTimeRange: TimeRange
-    @Binding var chartType: ChartType
+struct HumidorEnvironmentHistoryView: View {
+    @ObservedObject var viewModel: HumidorEnvironmentViewModel
+    @State private var selectedTimeRange: TimeRange = .day
+    @State private var selectedChartType: ChartType = .line
+    @State private var selectedDataPoint: DataPoint?
+    let sensorId: String
     
     var body: some View {
-        HStack {
-            Picker("Time Range", selection: $selectedTimeRange) {
-                ForEach(TimeRange.allCases, id: \.self) { range in
-                    Text(range.title).tag(range)
-                }
-            }
-            .pickerStyle(.segmented)
+        VStack(spacing: 16) {
+            ChartControls(
+                timeRange: $selectedTimeRange,
+                chartType: $selectedChartType
+            )
             
-            Picker("Chart Type", selection: $chartType) {
-                Image(systemName: "chart.line.uptrend.xyaxis").tag(ChartType.line)
-                Image(systemName: "chart.scatter").tag(ChartType.scatter)
-                Image(systemName: "chart.bar").tag(ChartType.bar)
+            ScrollView {
+                VStack(spacing: 20) {
+                    AnalysisSectionView(viewModel: viewModel)
+                    EnvironmentStatisticsView(viewModel: viewModel)
+                    
+                    // Temperature Chart
+                    EnvironmentChartView(
+                        title: "Temperature",
+                        data: viewModel.historicalData,
+                        timeRange: selectedTimeRange,
+                        chartType: selectedChartType,
+                        valueFormatter: { temp in
+                            String(format: "%.1f°F", (temp * 9/5) + 32)
+                        },
+                        color: .orange
+                    )
+                    
+                    // Humidity Chart
+                    EnvironmentChartView(
+                        title: "Humidity",
+                        data: viewModel.historicalData,
+                        timeRange: selectedTimeRange,
+                        chartType: selectedChartType,
+                        valueFormatter: { humidity in
+                            String(format: "%.1f%%", humidity)
+                        },
+                        color: .blue
+                    )
+                }
+                .padding()
             }
-            .pickerStyle(.segmented)
         }
-        .padding(.vertical, 8)
+        .onChange(of: selectedTimeRange) { _ in
+            Task {
+                await viewModel.loadHistoricalData(for: selectedTimeRange, sensorId: sensorId)
+            }
+        }
+        .task {
+            await viewModel.loadHistoricalData(for: selectedTimeRange, sensorId: sensorId)
+        }
     }
 }
 
-struct TemperatureChartView: View {
-    let viewModel: HumidorEnvironmentViewModel
+struct EnvironmentChartView: View {
+    let title: String
+    let data: [(timestamp: Date, temperature: Double, humidity: Double)]
+    let timeRange: TimeRange
     let chartType: ChartType
-    @Binding var selectedDataPoint: DataPoint?
-    let selectedTimeRange: TimeRange
+    let valueFormatter: (Double) -> String
+    let color: Color
+    @State private var selectedDataPoint: DataPoint?
     
     var body: some View {
-        VStack(alignment: .leading) {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.headline)
+            
             Chart {
-                ForEach(viewModel.historicalData, id: \.timestamp) { dataPoint in
+                ForEach(data, id: \.timestamp) { sample in
                     switch chartType {
                     case .line:
                         LineMark(
-                            x: .value("Time", dataPoint.timestamp),
-                            y: .value("Temperature", dataPoint.temperature)
+                            x: .value("Time", sample.timestamp),
+                            y: .value(title, sample.temperature)
                         )
-                        .foregroundStyle(.red.gradient)
-                        .interpolationMethod(.catmullRom)
+                        .foregroundStyle(color)
+                        
+                        AreaMark(
+                            x: .value("Time", sample.timestamp),
+                            y: .value(title, sample.temperature)
+                        )
+                        .foregroundStyle(color.opacity(0.1))
+                        
                     case .scatter:
                         PointMark(
-                            x: .value("Time", dataPoint.timestamp),
-                            y: .value("Temperature", dataPoint.temperature)
+                            x: .value("Time", sample.timestamp),
+                            y: .value(title, sample.temperature)
                         )
-                        .foregroundStyle(.red)
+                        .foregroundStyle(color)
+                        
                     case .bar:
                         BarMark(
-                            x: .value("Time", dataPoint.timestamp),
-                            y: .value("Temperature", dataPoint.temperature)
+                            x: .value("Time", sample.timestamp),
+                            y: .value(title, sample.temperature)
                         )
-                        .foregroundStyle(.red.gradient)
+                        .foregroundStyle(color)
                     }
                 }
                 
                 if let selected = selectedDataPoint {
-                    RuleMark(
-                        x: .value("Selected", selected.timestamp)
-                    )
-                    .foregroundStyle(.gray.opacity(0.3))
-                    .annotation(position: .top) {
-                        DataPointAnnotation(temperature: selected.temperature)
-                    }
+                    RuleMark(x: .value("Selected", selected.timestamp))
+                        .annotation(position: .top) {
+                            ChartAnnotation(
+                                timestamp: selected.timestamp,
+                                value: selected.temperature,
+                                timeRange: timeRange,
+                                valueFormatter: valueFormatter,
+                                color: color
+                            )
+                        }
                 }
             }
+            .frame(height: 200)
             .chartXAxis {
-                AxisMarks(values: .stride(by: selectedTimeRange.strideBy)) { value in
-                    AxisGridLine()
-                    AxisTick()
-                    AxisValueLabel(format: selectedTimeRange.dateFormat)
+                AxisMarks { value in
+                    if let date = value.as(Date.self) {
+                        AxisValueLabel {
+                            Text(date.formatted(timeRange.chartXAxisFormat))
+                        }
+                    }
                 }
             }
             .chartYAxis {
-                AxisMarks(position: .leading) { value in
-                    AxisGridLine()
-                    AxisTick()
-                    AxisValueLabel {
-                        if let temp = value.as(Double.self) {
-                            Text("\(temp, format: .number)°F")
-                        }
-                    }
-                }
+                AxisMarks(position: .leading)
             }
             .chartOverlay { proxy in
-                ChartOverlayView(proxy: proxy, selectedDataPoint: $selectedDataPoint, data: viewModel.historicalData)
-            }
-            .frame(height: 200)
-            
-            if !viewModel.historicalData.isEmpty {
-                EnvironmentStatisticsView(viewModel: viewModel)
-            }
-        }
-    }
-}
-
-struct DataPointAnnotation: View {
-    let temperature: Double
-    
-    var body: some View {
-        VStack {
-            Text("\(temperature, format: .number.precision(.fractionLength(1)))°F")
-                .font(.caption)
-                .foregroundColor(.red)
-        }
-        .padding(4)
-        .background(.ultraThinMaterial)
-        .cornerRadius(4)
-    }
-}
-
-struct ChartOverlayView: View {
-    let proxy: ChartProxy
-    @Binding var selectedDataPoint: DataPoint?
-    let data: [(timestamp: Date, temperature: Double, humidity: Double)]
-    
-    var body: some View {
-        GeometryReader { geometry in
-            Rectangle()
-                .fill(.clear)
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture()
-                        .onChanged { value in
-                            let x = value.location.x - geometry[proxy.plotAreaFrame].origin.x
-                            guard let timestamp = proxy.value(atX: x, as: Date.self) else { return }
-                            
-                            let closestDataPoint = data
-                                .min(by: { abs($0.timestamp.timeIntervalSince(timestamp)) < abs($1.timestamp.timeIntervalSince(timestamp)) })
-                            
-                            if let point = closestDataPoint {
-                                selectedDataPoint = DataPoint(
-                                    timestamp: point.timestamp,
-                                    temperature: point.temperature,
-                                    humidity: point.humidity
-                                )
-                            }
-                        }
-                        .onEnded { _ in
-                            selectedDataPoint = nil
-                        }
+                ChartOverlayView(
+                    proxy: proxy,
+                    selectedDataPoint: $selectedDataPoint,
+                    data: data
                 )
+            }
         }
+        .padding()
+        .background(Color(.secondarySystemGroupedBackground))
+        .cornerRadius(12)
     }
 }
 
@@ -322,8 +262,61 @@ struct EnvironmentalAlertRow: View {
     }
 }
 
-#Preview {
-    NavigationStack {
-        HumidorEnvironmentHistoryView(humidor: Humidor())
+struct ChartAnnotation: View {
+    let timestamp: Date
+    let value: Double
+    let timeRange: TimeRange
+    let valueFormatter: (Double) -> String
+    let color: Color
+    
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text(timestamp.formatted(timeRange.dateFormat))
+            Text(valueFormatter(value))
+                .foregroundStyle(color)
+        }
+        .padding(6)
+        .background(.ultraThinMaterial)
+        .cornerRadius(8)
     }
+}
+
+struct ChartOverlayView: View {
+    let proxy: ChartProxy
+    @Binding var selectedDataPoint: DataPoint?
+    let data: [(timestamp: Date, temperature: Double, humidity: Double)]
+    
+    var body: some View {
+        GeometryReader { geometry in
+            Rectangle()
+                .fill(.clear)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture()
+                        .onChanged { value in
+                            let x = value.location.x - geometry[proxy.plotAreaFrame].origin.x
+                            guard let timestamp = proxy.value(atX: x, as: Date.self) else { return }
+                            
+                            let closestDataPoint = data
+                                .min(by: { abs($0.timestamp.timeIntervalSince(timestamp)) < abs($1.timestamp.timeIntervalSince(timestamp)) })
+                            
+                            if let point = closestDataPoint {
+                                selectedDataPoint = DataPoint(
+                                    timestamp: point.timestamp,
+                                    temperature: point.temperature,
+                                    humidity: point.humidity
+                                )
+                            }
+                        }
+                        .onEnded { _ in
+                            selectedDataPoint = nil
+                        }
+                )
+        }
+    }
+}
+
+#Preview {
+    let viewModel = HumidorEnvironmentViewModel()
+    return HumidorEnvironmentHistoryView(viewModel: viewModel, sensorId: "preview-sensor")
 } 

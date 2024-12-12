@@ -124,7 +124,8 @@ struct HumidorDetailView: View {
                     Label("Temperature", systemImage: "thermometer")
                     Spacer()
                     if let temp = currentTemperature {
-                        Text(String(format: "%.1f°F", temp))
+                        let fahrenheit = (temp * 9/5) + 32
+                        Text(String(format: "%.1f°F", fahrenheit))
                             .foregroundStyle(sensor.isReachable ? .primary : .secondary)
                     } else {
                         Text("--°F")

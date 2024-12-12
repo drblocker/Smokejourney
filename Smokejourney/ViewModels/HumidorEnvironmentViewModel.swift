@@ -29,6 +29,8 @@ final class HumidorEnvironmentViewModel: ObservableObject {
     @Published var isAuthenticated = UserDefaults.standard.bool(forKey: "sensorPushAuthenticated")
     @Published var showAuthenticationSheet = false
     
+    @Published var latestSamples: [String: SensorSample] = [:]
+    
     private let logger = Logger(subsystem: "com.jason.smokejourney", category: "HumidorEnvironment")
     private let sensorPushService = SensorPushService.shared
     private let keychain = KeychainWrapper.standard
@@ -166,6 +168,7 @@ final class HumidorEnvironmentViewModel: ObservableObject {
             let samples = try await sensorPushService.getSamples(for: sensorId, limit: 1)
             if let latest = samples.first {
                 await MainActor.run {
+                    self.latestSamples[sensorId] = latest
                     self.temperature = latest.temperature
                     self.humidity = latest.humidity
                     self.lastUpdated = latest.time
@@ -278,5 +281,33 @@ final class HumidorEnvironmentViewModel: ObservableObject {
         humidityRange = String(format: "%.1f%% - %.1f%%", minHumidity, maxHumidity)
         dailyAverageTemperature = String(format: "%.1f°F", avgTemp)
         dailyAverageHumidity = String(format: "%.1f%%", avgHumidity)
+    }
+    
+    func getSensorSample(for sensorId: String) -> SensorSample? {
+        return latestSamples[sensorId]
+    }
+    
+    func getTemperatureStatus(_ temperature: Double) -> EnvironmentStatus {
+        let tempLowAlert = UserDefaults.standard.double(forKey: "tempLowAlert")
+        let tempHighAlert = UserDefaults.standard.double(forKey: "tempHighAlert")
+        
+        if temperature < tempLowAlert || temperature > tempHighAlert {
+            return .critical
+        } else if abs(temperature - ((tempLowAlert + tempHighAlert) / 2)) > 3 {
+            return .warning
+        }
+        return .normal
+    }
+    
+    func getHumidityStatus(_ humidity: Double) -> EnvironmentStatus {
+        let humidityLowAlert = UserDefaults.standard.double(forKey: "humidityLowAlert")
+        let humidityHighAlert = UserDefaults.standard.double(forKey: "humidityHighAlert")
+        
+        if humidity < humidityLowAlert || humidity > humidityHighAlert {
+            return .critical
+        } else if abs(humidity - ((humidityLowAlert + humidityHighAlert) / 2)) > 5 {
+            return .warning
+        }
+        return .normal
     }
 } 
