@@ -1,96 +1,93 @@
 import SwiftUI
 import SwiftData
+import PhotosUI
+import os.log
 
 struct ProfileView: View {
-    @AppStorage("isSignedIn") private var isSignedIn = false
     @Environment(\.modelContext) private var modelContext
-    @StateObject private var authManager = AuthenticationManager.shared
-    @State private var showSignOut = false
+    @EnvironmentObject private var authManager: AuthenticationManager
+    @State private var showSignOutAlert = false
+    @State private var showImagePicker = false
+    @State private var selectedImage: PhotosPickerItem?
+    @State private var profileImage: Image?
+    private let logger = Logger(subsystem: "com.smokejourney", category: "ProfileView")
     
     var body: some View {
         NavigationStack {
-            List {
-                if authManager.isAuthenticated {
-                    // User Info Section
-                    Section {
-                        if let user = authManager.currentUser {
-                            UserInfoRow(user: user)
+            Form {
+                Section {
+                    if let user = authManager.currentUser {
+                        HStack {
+                            if let profileImage {
+                                profileImage
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 60, height: 60)
+                                    .clipShape(Circle())
+                            } else {
+                                Image(systemName: "person.circle.fill")
+                                    .resizable()
+                                    .frame(width: 60, height: 60)
+                                    .foregroundColor(.gray)
+                            }
+                            
+                            VStack(alignment: .leading) {
+                                Text(user.name)
+                                    .font(.headline)
+                                Text(user.email)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
                         }
-                    }
-                    
-                    // Settings Section
-                    Section {
-                        NavigationLink("Sensors") {
-                            SensorManagementView()
-                        }
+                        .padding(.vertical, 4)
                         
-                        NavigationLink("Environment Settings") {
-                            EnvironmentSettingsView()
-                        }
-                        
-                        NavigationLink("Notifications") {
-                            NotificationSettingsView()
+                        PhotosPicker(selection: $selectedImage,
+                                   matching: .images,
+                                   photoLibrary: .shared()) {
+                            Label("Change Profile Photo", systemImage: "photo")
                         }
                     }
-                    
-                    // Sign Out Section
-                    Section {
-                        Button(role: .destructive) {
-                            showSignOut = true
-                        } label: {
-                            Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
-                        }
-                    }
-                } else {
-                    // Sign In Section
-                    Section {
-                        SignInView()
+                }
+                
+                Section {
+                    Button(role: .destructive) {
+                        showSignOutAlert = true
+                    } label: {
+                        Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
                     }
                 }
             }
             .navigationTitle("Profile")
-            .confirmationDialog(
-                "Are you sure you want to sign out?",
-                isPresented: $showSignOut,
-                titleVisibility: .visible
-            ) {
+            .alert("Sign Out", isPresented: $showSignOutAlert) {
+                Button("Cancel", role: .cancel) { }
                 Button("Sign Out", role: .destructive) {
                     Task {
-                        await authManager.signOut()
+                        try? await authManager.signOut()
                     }
                 }
-                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Are you sure you want to sign out?")
             }
-        }
-    }
-}
-
-// Helper Views
-struct UserInfoRow: View {
-    let user: User
-    
-    var body: some View {
-        VStack(alignment: .leading) {
-            Text(user.displayName)
-                .font(.headline)
-            Text(user.email)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-struct SignInView: View {
-    @StateObject private var authManager = AuthenticationManager.shared
-    
-    var body: some View {
-        Button {
-            Task {
-                await authManager.signIn()
+            .onChange(of: selectedImage) {
+                Task {
+                    if let data = try? await selectedImage?.loadTransferable(type: Data.self),
+                       let uiImage = UIImage(data: data) {
+                        profileImage = Image(uiImage: uiImage)
+                        // Save profile image
+                        if let user = authManager.currentUser {
+                            user.profileImageData = data
+                            try? modelContext.save()
+                        }
+                    }
+                }
             }
-        } label: {
-            Label("Sign in with Apple", systemImage: "apple.logo")
+            .task {
+                if let user = authManager.currentUser,
+                   let imageData = user.profileImageData,
+                   let uiImage = UIImage(data: imageData) {
+                    profileImage = Image(uiImage: uiImage)
+                }
+            }
         }
     }
 }
@@ -100,4 +97,5 @@ struct SignInView: View {
         ProfileView()
             .modelContainer(for: User.self, inMemory: true)
     }
+} 
 } 

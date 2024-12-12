@@ -2,14 +2,22 @@ import SwiftUI
 import SwiftData
 
 struct ContentView: View {
-    @StateObject private var authManager = AuthenticationManager.shared
+    @EnvironmentObject private var authManager: AuthenticationManager
+    @Environment(\.modelContext) private var modelContext
     
     var body: some View {
         Group {
             if authManager.isAuthenticated {
                 MainTabView()
             } else {
-                LoginView()
+                SignInView()
+            }
+        }
+        .task {
+            do {
+                try await authManager.restoreUser(from: modelContext)
+            } catch {
+                print("Failed to restore user: \(error)")
             }
         }
     }

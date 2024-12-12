@@ -4,9 +4,10 @@ import Foundation
 @Model
 final class User {
     // MARK: - Properties
-    var id: String?
+    var id: String
     var email: String?
     var name: String?
+    var profileImageData: Data?
     
     // Dates with default values
     var createdAt: Date = Date()
