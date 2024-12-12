@@ -2,43 +2,41 @@ import SwiftUI
 import SwiftData
 
 struct ContentView: View {
-    @EnvironmentObject private var authManager: AuthenticationManager
-    @Environment(\.modelContext) private var modelContext
+    @StateObject private var authManager = AuthenticationManager.shared
     
     var body: some View {
         Group {
             if authManager.isAuthenticated {
-                MainTabView()
+                AppTabView()
             } else {
                 SignInView()
             }
         }
-        .task {
-            do {
-                try await authManager.restoreUser(from: modelContext)
-            } catch {
-                print("Failed to restore user: \(error)")
-            }
-        }
+        .environmentObject(authManager)
     }
 }
 
-struct MainTabView: View {
+private struct AppTabView: View {
+    @State private var selectedTab = 0
+    @EnvironmentObject private var authManager: AuthenticationManager
+    
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             NavigationStack {
                 HumidorListView()
             }
             .tabItem {
                 Label("Humidors", systemImage: "cabinet")
             }
+            .tag(0)
             
             NavigationStack {
-                EnvironmentalMonitoringView(humidor: Humidor())
+                ClimateView()
             }
             .tabItem {
-                Label("Environment", systemImage: "thermometer")
+                Label("Climate", systemImage: "thermometer")
             }
+            .tag(1)
             
             NavigationStack {
                 StatisticsView()
@@ -46,6 +44,7 @@ struct MainTabView: View {
             .tabItem {
                 Label("Statistics", systemImage: "chart.bar.fill")
             }
+            .tag(2)
             
             NavigationStack {
                 ProfileView()
@@ -53,13 +52,12 @@ struct MainTabView: View {
             .tabItem {
                 Label("Profile", systemImage: "person.circle")
             }
+            .tag(3)
         }
     }
 }
 
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView()
-            .environmentObject(AuthenticationManager.shared)
-    }
+#Preview {
+    ContentView()
+        .modelContainer(for: User.self, inMemory: true)
 } 

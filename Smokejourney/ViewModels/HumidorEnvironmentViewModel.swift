@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import os.log
+import HomeKit
 
 @MainActor
 final class HumidorEnvironmentViewModel: ObservableObject {
@@ -8,8 +9,8 @@ final class HumidorEnvironmentViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var error: String?
     @Published var sensors: [SensorPushDevice] = []
-    @Published var temperature: Double?
-    @Published var humidity: Double?
+    @Published private(set) var currentTemperature: Double?
+    @Published private(set) var currentHumidity: Double?
     @Published var lastUpdated: Date?
     @Published var temperatureStatus: EnvironmentStatus = .normal
     @Published var humidityStatus: EnvironmentStatus = .normal
@@ -38,6 +39,10 @@ final class HumidorEnvironmentViewModel: ObservableObject {
     private let emailKey = "sensorPushEmail"
     private let passwordKey = "sensorPushPassword"
     
+    // Add computed properties for view access
+    var temperature: Double? { currentTemperature }
+    var humidity: Double? { currentHumidity }
+    
     private func calculateStabilityMetrics() {
         guard !historicalData.isEmpty else { return }
         
@@ -62,7 +67,7 @@ final class HumidorEnvironmentViewModel: ObservableObject {
         var newAlerts: [EnvironmentalMonitoring.Alert] = []
         
         // Check temperature
-        if let temp = temperature {
+        if let temp = currentTemperature {
             let tempLowAlert = UserDefaults.standard.double(forKey: "tempLowAlert")
             let tempHighAlert = UserDefaults.standard.double(forKey: "tempHighAlert")
             
@@ -82,7 +87,7 @@ final class HumidorEnvironmentViewModel: ObservableObject {
         }
         
         // Check humidity
-        if let hum = humidity {
+        if let hum = currentHumidity {
             let humidityLowAlert = UserDefaults.standard.double(forKey: "humidityLowAlert")
             let humidityHighAlert = UserDefaults.standard.double(forKey: "humidityHighAlert")
             
@@ -169,8 +174,8 @@ final class HumidorEnvironmentViewModel: ObservableObject {
             if let latest = samples.first {
                 await MainActor.run {
                     self.latestSamples[sensorId] = latest
-                    self.temperature = latest.temperature
-                    self.humidity = latest.humidity
+                    self.currentTemperature = latest.temperature
+                    self.currentHumidity = latest.humidity
                     self.lastUpdated = latest.time
                     self.isLoading = false
                     updateEnvironmentStatus()
@@ -233,7 +238,7 @@ final class HumidorEnvironmentViewModel: ObservableObject {
     
     private func updateEnvironmentStatus() {
         // Update temperature status
-        if let temp = temperature {
+        if let temp = currentTemperature {
             let tempLowAlert = UserDefaults.standard.double(forKey: "tempLowAlert")
             let tempHighAlert = UserDefaults.standard.double(forKey: "tempHighAlert")
             
@@ -247,7 +252,7 @@ final class HumidorEnvironmentViewModel: ObservableObject {
         }
         
         // Update humidity status
-        if let hum = humidity {
+        if let hum = currentHumidity {
             let humidityLowAlert = UserDefaults.standard.double(forKey: "humidityLowAlert")
             let humidityHighAlert = UserDefaults.standard.double(forKey: "humidityHighAlert")
             
@@ -309,5 +314,72 @@ final class HumidorEnvironmentViewModel: ObservableObject {
             return .warning
         }
         return .normal
+    }
+    
+    func loadHomeKitData(for accessory: HMAccessory, timeRange: TimeRange) async {
+        // Find temperature and humidity characteristics
+        let tempCharacteristic = accessory.services
+            .flatMap { service in service.characteristics }
+            .first { characteristic in
+                characteristic.characteristicType == "temperature.current"
+            }
+        
+        let humidityCharacteristic = accessory.services
+            .flatMap { service in service.characteristics }
+            .first { characteristic in
+                characteristic.characteristicType == "relative-humidity.current"
+            }
+        
+        guard let tempCharacteristic = tempCharacteristic,
+              let humidityCharacteristic = humidityCharacteristic else {
+            self.error = "Could not find required characteristics"
+            return
+        }
+        
+        do {
+            // Get current readings
+            try await tempCharacteristic.readValue()
+            try await humidityCharacteristic.readValue()
+            
+            if let temperature = tempCharacteristic.value as? Double,
+               let humidity = humidityCharacteristic.value as? Double {
+                // Convert temperature from Celsius to Fahrenheit if needed
+                let tempInFahrenheit = temperature * 9/5 + 32
+                
+                await MainActor.run {
+                    self.currentTemperature = tempInFahrenheit
+                    self.currentHumidity = humidity
+                    self.lastUpdated = Date()
+                    
+                    // Add to historical data
+                    let dataPoint = (
+                        timestamp: Date(),
+                        temperature: tempInFahrenheit,
+                        humidity: humidity
+                    )
+                    self.historicalData.append(dataPoint)
+                    
+                    // Keep only the needed amount of historical data
+                    if self.historicalData.count > timeRange.limit {
+                        self.historicalData = Array(self.historicalData.suffix(timeRange.limit))
+                    }
+                    
+                    updateEnvironmentStatus()
+                    calculateStabilityMetrics()
+                    calculateStatistics()
+                }
+            }
+        } catch {
+            await MainActor.run {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+}
+
+extension HMAccessory {
+    func find(characteristicType: String) -> HMCharacteristic? {
+        return services.flatMap { $0.characteristics }
+            .first { $0.characteristicType == characteristicType }
     }
 } 

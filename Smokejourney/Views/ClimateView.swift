@@ -4,6 +4,8 @@ import HomeKit
 import Charts
 
 struct ClimateView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query private var climateSensors: [ClimateSensor]
     @EnvironmentObject private var sensorPushManager: SensorPushService
     @EnvironmentObject private var homeKitManager: HomeKitService
     @StateObject private var viewModel = HumidorEnvironmentViewModel()
@@ -12,38 +14,90 @@ struct ClimateView: View {
     
     var body: some View {
         NavigationStack {
-            ScrollView {
-                LazyVStack(spacing: 20) {
-                    ClimateTimeRangePicker(selectedRange: $selectedTimeRange)
-                    CurrentConditionsCard(viewModel: viewModel)
-                    EnvironmentChartsSection(viewModel: viewModel, timeRange: selectedTimeRange)
-                    StabilityMetricsView(viewModel: viewModel)
-                }
-                .padding(.vertical)
-            }
-            .navigationTitle("Climate")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: { showAddSensor = true }) {
-                        Image(systemName: "plus")
+            Group {
+                if climateSensors.isEmpty {
+                    ContentUnavailableView {
+                        Label("No Sensors", systemImage: "sensor.fill")
+                    } description: {
+                        Text("Add a sensor to monitor climate conditions")
+                    } actions: {
+                        Button(action: { showAddSensor = true }) {
+                            Label("Add Sensor", systemImage: "plus")
+                        }
+                    }
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 20) {
+                            ClimateTimeRangePicker(selectedRange: $selectedTimeRange)
+                            CurrentConditionsCard(viewModel: viewModel)
+                            EnvironmentChartsSection(viewModel: viewModel, timeRange: selectedTimeRange)
+                            StabilityMetricsView(viewModel: viewModel)
+                        }
+                        .padding(.vertical)
                     }
                 }
             }
-            .task {
-                await refreshData()
-            }
-            .onChange(of: selectedTimeRange) { _ in
-                Task {
-                    await refreshData()
+            .navigationTitle("Climate")
+            .toolbar {
+                if !climateSensors.isEmpty {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button(action: { showAddSensor = true }) {
+                            Image(systemName: "plus")
+                        }
+                    }
                 }
+            }
+            .sheet(isPresented: $showAddSensor) {
+                NavigationStack {
+                    SensorSelectionSheet { sensorId, type in
+                        if let sensorId = sensorId {
+                            let sensor = ClimateSensor(id: sensorId, type: type)
+                            modelContext.insert(sensor)
+                            try? modelContext.save()
+                            showAddSensor = false
+                            
+                            Task {
+                                await refreshData()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .task {
+            await refreshData()
+        }
+        .onChange(of: selectedTimeRange) { _ in
+            Task {
+                await refreshData()
             }
         }
     }
     
     private func refreshData() async {
-        await viewModel.fetchSensors()
-        for sensor in sensorPushManager.sensors {
-            await viewModel.loadHistoricalData(for: selectedTimeRange, sensorId: sensor.id)
+        // Only fetch SensorPush sensors if we have any SensorPush climate sensors
+        if climateSensors.contains(where: { $0.type == .sensorPush }) {
+            await viewModel.fetchSensors()
+        }
+        
+        // Refresh data for each sensor based on its type
+        for sensor in climateSensors {
+            switch sensor.type {
+            case .sensorPush:
+                if sensorPushManager.isAuthorized {
+                    await viewModel.loadHistoricalData(for: selectedTimeRange, sensorId: sensor.id)
+                }
+            case .homeKit:
+                if homeKitManager.isAuthorized {
+                    // Load HomeKit sensor data
+                    if let accessory = homeKitManager.temperatureSensors.first(where: { $0.uniqueIdentifier.uuidString == sensor.id }) {
+                        await viewModel.loadHomeKitData(
+                            for: accessory,
+                            timeRange: selectedTimeRange
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -54,8 +108,8 @@ struct ClimateTimeRangePicker: View {
     
     var body: some View {
         Picker("Time Range", selection: $selectedRange) {
-            ForEach(TimeRange.allCases, id: \.self) { range in
-                Text(range.rawValue).tag(range)
+            ForEach(TimeRange.allCases, id: \.id) { range in
+                Text(range.displayName).tag(range)
             }
         }
         .pickerStyle(.segmented)
@@ -155,50 +209,32 @@ struct CurrentConditionsCard: View {
     @ObservedObject var viewModel: HumidorEnvironmentViewModel
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(alignment: .leading, spacing: 16) {
             Text("Current Conditions")
                 .font(.headline)
+                .padding(.horizontal)
             
-            HStack(spacing: 30) {
-                // Temperature Reading
-                VStack {
-                    Image(systemName: "thermometer")
-                        .font(.title)
-                        .foregroundStyle(.orange)
-                    if let temp = viewModel.temperature {
-                        Text(String(format: "%.1f°F", (temp * 9/5) + 32))
-                            .font(.title2)
-                        Text("Temperature")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+            HStack(spacing: 20) {
+                if let temperature = viewModel.currentTemperature {
+                    ReadingView(
+                        value: String(format: "%.1f°F", temperature),
+                        title: "Temperature",
+                        icon: "thermometer",
+                        color: .orange
+                    )
                 }
                 
-                // Humidity Reading
-                VStack {
-                    Image(systemName: "humidity")
-                        .font(.title)
-                        .foregroundStyle(.blue)
-                    if let humidity = viewModel.humidity {
-                        Text(String(format: "%.1f%%", humidity))
-                            .font(.title2)
-                        Text("Humidity")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                if let humidity = viewModel.currentHumidity {
+                    ReadingView(
+                        value: String(format: "%.1f%%", humidity),
+                        title: "Humidity",
+                        icon: "humidity",
+                        color: .blue
+                    )
                 }
             }
-            
-            if let updated = viewModel.lastUpdated {
-                Text("Updated \(updated.formatted(.relative(presentation: .named)))")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
+            .padding(.horizontal)
         }
-        .padding()
-        .background(Color(.secondarySystemGroupedBackground))
-        .cornerRadius(12)
-        .padding(.horizontal)
     }
 }
 
@@ -270,5 +306,29 @@ struct StabilityGauge: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+    }
+}
+
+struct ReadingView: View {
+    let value: String
+    let title: String
+    let icon: String
+    let color: Color
+    
+    var body: some View {
+        VStack {
+            Image(systemName: icon)
+                .font(.title)
+                .foregroundStyle(color)
+            Text(value)
+                .font(.title2)
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(Color(.secondarySystemGroupedBackground))
+        .cornerRadius(12)
     }
 } 

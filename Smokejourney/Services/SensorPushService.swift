@@ -29,6 +29,8 @@ enum SensorPushError: LocalizedError {
     case invalidResponse
     case unknown
     case authenticationFailed(message: String)
+    case scanningFailed
+    case connectionFailed
     
     var errorDescription: String? {
         switch self {
@@ -44,6 +46,10 @@ enum SensorPushError: LocalizedError {
             return "An unknown error occurred"
         case .authenticationFailed(let message):
             return message
+        case .scanningFailed:
+            return "Failed to scan for sensors"
+        case .connectionFailed:
+            return "Failed to connect to sensor"
         }
     }
 }
@@ -97,6 +103,38 @@ final class SensorPushService: ObservableObject {
             return try await api.fetchSamples(for: sensorId, limit: limit)
         } catch {
             throw SensorPushError.networkError(error)
+        }
+    }
+    
+    func scanForSensors() async throws -> Bool {
+        // Simulate scanning for now - replace with actual SensorPush API implementation
+        do {
+            // Add artificial delay to simulate scanning
+            try await Task.sleep(nanoseconds: 2 * 1_000_000_000) // 2 seconds
+            
+            // Here you would:
+            // 1. Start Bluetooth scanning
+            // 2. Look for SensorPush devices
+            // 3. Update the sensors array with found devices
+            
+            // For testing, simulate finding a sensor 50% of the time
+            let foundSensor = Bool.random()
+            if foundSensor {
+                let newSensor = SensorPushDevice(
+                    id: UUID().uuidString,
+                    deviceId: "SP-TEST",
+                    name: "Test Sensor",
+                    location: nil,
+                    active: true,
+                    batteryVoltage: 0.0,
+                    rssi: 0
+                )
+                sensors.append(newSensor)
+            }
+            
+            return foundSensor
+        } catch {
+            throw SensorPushError.scanningFailed
         }
     }
 }

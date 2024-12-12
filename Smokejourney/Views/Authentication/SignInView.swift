@@ -1,3 +1,7 @@
+import SwiftUI
+import AuthenticationServices
+import SwiftData
+
 struct SignInView: View {
     @EnvironmentObject private var authManager: AuthenticationManager
     @Environment(\.modelContext) private var modelContext
@@ -20,13 +24,24 @@ struct SignInView: View {
             SignInWithAppleButton(.signIn) { request in
                 request.requestedScopes = [.fullName, .email]
             } onCompletion: { result in
-                Task {
-                    do {
-                        try await authManager.handleSignInWithApple(result, context: modelContext)
-                    } catch {
-                        self.error = error
+                switch result {
+                case .success(let authorization):
+                    guard let credentials = authorization.credential as? ASAuthorizationAppleIDCredential else {
                         showError = true
+                        error = NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid credentials"])
+                        return
                     }
+                    Task {
+                        do {
+                            try await authManager.handleSignInWithApple(credentials, context: modelContext)
+                        } catch {
+                            self.error = error
+                            showError = true
+                        }
+                    }
+                case .failure(let error):
+                    self.error = error
+                    showError = true
                 }
             }
             .frame(height: 45)
@@ -39,4 +54,10 @@ struct SignInView: View {
             Text(error?.localizedDescription ?? "An unknown error occurred")
         }
     }
+}
+
+#Preview {
+    SignInView()
+        .modelContainer(for: User.self, inMemory: true)
+        .environmentObject(AuthenticationManager.shared)
 } 

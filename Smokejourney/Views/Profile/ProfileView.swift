@@ -7,16 +7,22 @@ struct ProfileView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var authManager: AuthenticationManager
     @State private var showSignOutAlert = false
-    @State private var showImagePicker = false
     @State private var selectedImage: PhotosPickerItem?
     @State private var profileImage: Image?
     private let logger = Logger(subsystem: "com.smokejourney", category: "ProfileView")
     
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
+    
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    if let user = authManager.currentUser {
+                if let user = authManager.currentUser {
+                    Section {
                         HStack {
                             if let profileImage {
                                 profileImage
@@ -32,11 +38,13 @@ struct ProfileView: View {
                             }
                             
                             VStack(alignment: .leading) {
-                                Text(user.name)
+                                Text(user.fullName)
                                     .font(.headline)
-                                Text(user.email)
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
+                                if let email = user.email {
+                                    Text(email)
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                }
                             }
                         }
                         .padding(.vertical, 4)
@@ -47,13 +55,75 @@ struct ProfileView: View {
                             Label("Change Profile Photo", systemImage: "photo")
                         }
                     }
-                }
-                
-                Section {
-                    Button(role: .destructive) {
-                        showSignOutAlert = true
-                    } label: {
-                        Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                    
+                    Section("Preferences") {
+                        Picker("Temperature Unit", selection: .init(
+                            get: { user.preferredTemperatureUnit ?? .fahrenheit },
+                            set: { user.preferredTemperatureUnit = $0 }
+                        )) {
+                            Text("Fahrenheit").tag(TemperatureUnit.fahrenheit)
+                            Text("Celsius").tag(TemperatureUnit.celsius)
+                        }
+                        
+                        Picker("Humidity Unit", selection: .init(
+                            get: { user.preferredHumidityUnit ?? .percentage },
+                            set: { user.preferredHumidityUnit = $0 }
+                        )) {
+                            Text("Percentage").tag(HumidityUnit.percentage)
+                            Text("g/m³").tag(HumidityUnit.gramsPerCubicMeter)
+                        }
+                        
+                        Toggle("Notifications", isOn: .init(
+                            get: { user.notificationsEnabled ?? true },
+                            set: { user.notificationsEnabled = $0 }
+                        ))
+                        
+                        Toggle("Dark Mode", isOn: .init(
+                            get: { user.darkModeEnabled ?? false },
+                            set: { user.darkModeEnabled = $0 }
+                        ))
+                    }
+                    
+                    Section("Climate") {
+                        NavigationLink {
+                            EnvironmentalMonitoringTabView()
+                        } label: {
+                            HStack {
+                                Image(systemName: "thermometer")
+                                VStack(alignment: .leading) {
+                                    Text("Climate Monitoring")
+                                    Text("Configure sensors and alerts")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                    
+                    Section("Settings") {
+                        NavigationLink {
+                            SettingsView()
+                        } label: {
+                            Label("Settings", systemImage: "gear")
+                        }
+                        
+                        NavigationLink {
+                            DataManagementView()
+                        } label: {
+                            Label("Manage Data", systemImage: "externaldrive")
+                        }
+                    }
+                    
+                    Section("Account") {
+                        if let memberSince = user.memberSince {
+                            LabeledContent("Member Since", value: dateFormatter.string(from: memberSince))
+                        }
+                        
+                        Button(role: .destructive) {
+                            showSignOutAlert = true
+                        } label: {
+                            Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                        }
                     }
                 }
             }
@@ -73,7 +143,6 @@ struct ProfileView: View {
                     if let data = try? await selectedImage?.loadTransferable(type: Data.self),
                        let uiImage = UIImage(data: data) {
                         profileImage = Image(uiImage: uiImage)
-                        // Save profile image
                         if let user = authManager.currentUser {
                             user.profileImageData = data
                             try? modelContext.save()
@@ -97,5 +166,4 @@ struct ProfileView: View {
         ProfileView()
             .modelContainer(for: User.self, inMemory: true)
     }
-} 
 } 

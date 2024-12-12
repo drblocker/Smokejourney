@@ -32,21 +32,17 @@ struct IntegrationsSettingsView: View {
                 Toggle("HomeKit Integration", isOn: $homeKitEnabled)
                     .onChange(of: homeKitEnabled) { _, newValue in
                         if newValue {
-                            requestHomeKitAccess()
+                            showingHomeKitSetup = true
                         }
                     }
                 
                 if homeKitEnabled {
-                    NavigationLink("Select Sensors") {
-                        HomeKitSensorSelectionView()
-                    }
-                    
-                    Button("Configure HomeKit") {
+                    Button("Manage HomeKit Sensors") {
                         showingHomeKitSetup = true
                     }
                 }
             } footer: {
-                Text("Add your humidors to HomeKit for Siri control and automation.")
+                Text("Use HomeKit compatible temperature and humidity sensors.")
             }
         }
         .navigationTitle("Integrations")
@@ -56,33 +52,22 @@ struct IntegrationsSettingsView: View {
                     if !success {
                         sensorPushEnabled = false
                     }
-                    showingSensorPushLogin = false
                 }
             }
         }
         .sheet(isPresented: $showingHomeKitSetup) {
             NavigationStack {
-                HomeKitSetupView(onComplete: { success in
+                HomeKitSetupView { success in
                     if !success {
                         homeKitEnabled = false
                     }
-                    showingHomeKitSetup = false
-                })
-                .environmentObject(HomeKitService.shared)
+                }
             }
         }
         .alert("Error", isPresented: $showingError) {
             Button("OK", role: .cancel) { }
         } message: {
             Text(errorMessage)
-        }
-    }
-    
-    private func requestHomeKitAccess() {
-        let manager = HMHomeManager()
-        // HomeKit authorization is handled automatically when accessing the first time
-        if manager.homes.isEmpty {
-            showingHomeKitSetup = true
         }
     }
 }

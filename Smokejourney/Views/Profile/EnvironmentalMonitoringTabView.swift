@@ -79,7 +79,8 @@ struct EnvironmentalMonitoringTabView: View {
                 }
                 .padding(.vertical)
             }
-            .navigationTitle("Environment")
+            .navigationTitle("Climate")
+            .navigationBarTitleDisplayMode(.large)
             .sheet(isPresented: $showingAddSensor) {
                 NavigationStack {
                     HumidorSensorSelectionSheet(selectedHumidor: $selectedHumidor)

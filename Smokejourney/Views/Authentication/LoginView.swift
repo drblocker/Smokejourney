@@ -3,7 +3,7 @@ import AuthenticationServices
 import SwiftData
 
 struct LoginView: View {
-    @StateObject private var authManager = AuthenticationManager.shared
+    @EnvironmentObject private var authManager: AuthenticationManager
     @Environment(\.modelContext) private var modelContext
     @State private var showingError = false
     @State private var errorMessage = ""
@@ -29,13 +29,26 @@ struct LoginView: View {
                 SignInWithAppleButton { request in
                     request.requestedScopes = [.fullName, .email]
                 } onCompletion: { result in
-                    Task {
-                        do {
-                            try await authManager.handleSignInWithApple(result, context: modelContext)
-                        } catch {
+                    switch result {
+                    case .success(let authResults):
+                        guard let credentials = authResults.credential as? ASAuthorizationAppleIDCredential else {
                             showingError = true
-                            errorMessage = error.localizedDescription
+                            errorMessage = "Invalid credentials"
+                            return
                         }
+                        
+                        Task {
+                            do {
+                                try await authManager.handleSignInWithApple(credentials, context: modelContext)
+                            } catch {
+                                showingError = true
+                                errorMessage = error.localizedDescription
+                            }
+                        }
+                        
+                    case .failure(let error):
+                        showingError = true
+                        errorMessage = error.localizedDescription
                     }
                 }
                 .frame(height: 50)
@@ -64,4 +77,5 @@ struct LoginView: View {
 #Preview {
     LoginView()
         .modelContainer(for: User.self, inMemory: true)
+        .environmentObject(AuthenticationManager.shared)
 } 

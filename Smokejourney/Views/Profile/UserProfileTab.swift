@@ -56,7 +56,7 @@ struct ProfileHeaderView: View {
                 .foregroundColor(.accentColor)
             
             VStack(spacing: 4) {
-                Text(user.effectiveName)
+                Text(user.fullName)
                     .font(.title2)
                     .bold()
                 

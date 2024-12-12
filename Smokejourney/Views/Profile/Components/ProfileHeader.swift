@@ -12,17 +12,15 @@ struct ProfileHeader: View {
                 .foregroundColor(.accentColor)
             
             VStack(spacing: 4) {
-                Text(user.effectiveName)
+                Text(user.fullName)
                     .font(.title2)
                     .bold()
                 
-                Text(user.effectiveEmail)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                
-                Text("Member since \(user.memberSince)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                if let email = user.email {
+                    Text(email)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
             }
         }
         .frame(maxWidth: .infinity)
@@ -31,6 +29,11 @@ struct ProfileHeader: View {
 }
 
 #Preview {
-    ProfileHeader(user: User(id: "preview", email: "test@example.com", name: "Preview User"))
-        .previewLayout(.sizeThatFits)
+    ProfileHeader(user: User(
+        id: "preview",
+        email: "test@example.com",
+        firstName: "Preview",
+        lastName: "User"
+    ))
+    .previewLayout(.sizeThatFits)
 } 
