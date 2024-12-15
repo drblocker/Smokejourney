@@ -1,20 +1,36 @@
-import Foundation
 import SwiftData
+import Foundation
+import SensorKit
 
 @Model
-class ClimateSensor {
-    var id: String
-    var type: SensorType
-    var addedAt: Date
+final class ClimateSensor {
+    var id: String?
+    var name: String?
+    var typeRawValue: String?
+    @Relationship(deleteRule: .cascade) var readings: [SensorReading]?
+    @Relationship(deleteRule: .nullify) var humidor: Humidor?
     
-    init(id: String, type: SensorType) {
+    var type: SensorKit.SensorType {
+        get {
+            SensorKit.SensorType(rawValue: typeRawValue ?? "") ?? .homeKit
+        }
+        set {
+            typeRawValue = newValue.rawValue
+        }
+    }
+    
+    var currentTemperature: Double? {
+        readings?.last?.temperature
+    }
+    
+    var currentHumidity: Double? {
+        readings?.last?.humidity
+    }
+    
+    init(id: String = UUID().uuidString, name: String, type: SensorKit.SensorType) {
         self.id = id
-        self.type = type
-        self.addedAt = Date()
+        self.name = name
+        self.typeRawValue = type.rawValue
+        self.readings = []
     }
-    
-    enum SensorType: String, Codable {
-        case sensorPush
-        case homeKit
-    }
-} 
+}

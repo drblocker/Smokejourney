@@ -1,54 +1,56 @@
 import SwiftUI
 import SwiftData
 import HomeKit
-import OSLog
-import CloudKit
-
-// Custom string conversion for HomeKit authorization status
-extension HMHomeManagerAuthorizationStatus {
-    var statusDescription: String {
-        if self.contains(.authorized) {
-            return "authorized"
-        } else if self.contains(.determined) {
-            return "determined"
-        } else if self.contains(.restricted) {
-            return "restricted"
-        } else {
-            return "unknown"
-        }
-    }
-}
 
 @main
 struct SmokejourneyApp: App {
-    @StateObject private var homeKitManager = HomeKitService()
-    @StateObject private var sensorPushManager = SensorPushService()
-    @StateObject private var authManager = AuthenticationManager.shared
+    let modelContainer: ModelContainer
+    let backgroundTaskHandler: BackgroundTaskHandler
     
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            User.self,
-            Humidor.self,
-            Cigar.self,
-            SensorReading.self,
-            EnvironmentSettings.self
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, cloudKitDatabase: .automatic)
-        
+    init() {
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            // Configure CloudKit schema and container
+            let schema = Schema([
+                Humidor.self,
+                Cigar.self,
+                ClimateSensor.self,
+                SensorReading.self,
+                Sensor.self
+            ])
+            
+            let modelConfiguration = ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: false,
+                allowsSave: true,
+                groupContainer: .identifier("group.com.jason.smokejourney"),
+                cloudKitDatabase: .automatic,
+                migrations: [
+                    .automaticallyMigrateStores: true,
+                    .inferMappingModelAutomatically: true,
+                    .enablePersistentHistoryTracking: true,
+                    .enableRemoteChangeNotifications: true
+                ]
+            )
+            
+            // Initialize container with configuration
+            modelContainer = try ModelContainer(
+                for: schema,
+                migrationPlan: nil,
+                configurations: modelConfiguration
+            )
+            
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            fatalError("Failed to initialize ModelContainer: \(error)")
         }
-    }()
+        backgroundTaskHandler = BackgroundTaskHandler(modelContext: modelContainer.mainContext)
+    }
     
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .modelContainer(modelContainer)
+                .environmentObject(HomeKitService.shared)
+                .environmentObject(SensorPushService.shared)
         }
-        .environmentObject(homeKitManager)
-        .environmentObject(sensorPushManager)
-        .environmentObject(authManager)
-        .modelContainer(sharedModelContainer)
     }
 } 

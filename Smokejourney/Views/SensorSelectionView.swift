@@ -1,54 +1,52 @@
 import SwiftUI
+import SwiftData
 
 struct SensorSelectionView: View {
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var viewModel: HumidorEnvironmentViewModel
-    @Binding var selectedSensorId: String?
+    @Environment(\.modelContext) private var modelContext
+    @StateObject private var viewModel: ClimateViewModel
     
-    init(selectedSensorId: Binding<String?>) {
-        self._selectedSensorId = selectedSensorId
-        self._viewModel = StateObject(wrappedValue: HumidorEnvironmentViewModel())
+    init(modelContext: ModelContext) {
+        _viewModel = StateObject(wrappedValue: ClimateViewModel(modelContext: modelContext))
     }
     
     var body: some View {
-        List {
-            Section {
-                if viewModel.sensors.isEmpty {
-                    ContentUnavailableView {
-                        Label("No Sensors Available", systemImage: "sensor.fill")
-                    } description: {
-                        Text("Add sensors in Settings > SensorPush")
-                    }
-                } else {
-                    ForEach(viewModel.sensors) { sensor in
-                        Button(action: {
-                            selectedSensorId = sensor.id
-                            dismiss()
-                        }) {
-                            HStack {
-                                VStack(alignment: .leading) {
-                                    Text(sensor.displayName)
-                                        .font(.headline)
-                                    Text("ID: \(sensor.deviceId)")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                
-                                Spacer()
-                                
-                                if sensor.id == selectedSensorId {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.green)
-                                }
+        NavigationStack {
+            List {
+                Section {
+                    NavigationLink {
+                        HomeKitSensorListView { accessory in
+                            let climateSensor = ClimateSensor(
+                                id: accessory.uniqueIdentifier.uuidString,
+                                name: accessory.name,
+                                type: .homeKit
+                            )
+                            modelContext.insert(climateSensor)
+                            Task {
+                                await viewModel.loadSensorData(for: climateSensor)
                             }
+                            dismiss()
                         }
+                    } label: {
+                        Label("HomeKit Sensors", systemImage: "homekit")
+                    }
+                    
+                    NavigationLink {
+                        SensorPushAuthView()
+                    } label: {
+                        Label("SensorPush Sensors", systemImage: "sensor.fill")
                     }
                 }
             }
-        }
-        .navigationTitle("Select Sensor")
-        .task {
-            await viewModel.fetchSensors()
+            .navigationTitle("Add Sensor")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 } 

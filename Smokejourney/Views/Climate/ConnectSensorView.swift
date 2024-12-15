@@ -2,137 +2,81 @@ import SwiftUI
 
 struct ConnectSensorView: View {
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var sensorPushManager: SensorPushService
-    @State private var isScanning = false
-    @State private var showError = false
-    @State private var errorMessage = ""
+    @EnvironmentObject private var sensorPushService: SensorPushService
+    
+    @State private var email = ""
+    @State private var password = ""
+    @State private var isLoading = false
+    @State private var error: String?
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                ScanningSection(
-                    isScanning: isScanning,
-                    onScanTapped: startScanning
-                )
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Email", text: $email)
+                        .textContentType(.emailAddress)
+                        .autocapitalization(.none)
+                        .keyboardType(.emailAddress)
+                    SecureField("Password", text: $password)
+                        .textContentType(.password)
+                } header: {
+                    Text("SensorPush Account")
+                } footer: {
+                    Text("Sign in to your SensorPush account to connect your sensors.")
+                }
+            }
+            .navigationTitle("Connect Sensor")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
                 
-                InstructionsSection()
-            }
-            .padding()
-        }
-        .navigationTitle("Connect Sensor")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") {
-                    dismiss()
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Sign In") {
+                        Task {
+                            await signIn()
+                        }
+                    }
+                    .disabled(email.isEmpty || password.isEmpty || isLoading)
                 }
             }
-        }
-        .alert("Connection Error", isPresented: $showError) {
-            Button("OK") { }
-        } message: {
-            Text(errorMessage)
-        }
-    }
-    
-    private func startScanning() {
-        Task { @MainActor in
-            guard !isScanning else { return }
-            
-            isScanning = true
-            defer { isScanning = false }
-            
-            do {
-                let manager = sensorPushManager
-                if try await manager.scanForSensors() {
-                    dismiss()
-                } else {
-                    errorMessage = "No sensors found. Make sure your sensor is in pairing mode."
-                    showError = true
-                }
-            } catch {
-                if let sensorError = error as? SensorPushError {
-                    errorMessage = sensorError.localizedDescription
-                } else {
-                    errorMessage = "An unexpected error occurred while scanning"
-                }
-                showError = true
-            }
-        }
-    }
-}
-
-private struct ScanningSection: View {
-    let isScanning: Bool
-    let onScanTapped: () -> Void
-    
-    var body: some View {
-        GroupBox {
-            if isScanning {
-                HStack {
+            .disabled(isLoading)
+            .overlay {
+                if isLoading {
                     ProgressView()
-                        .controlSize(.regular)
-                    Text("Scanning for sensors...")
-                        .foregroundStyle(.secondary)
-                }
-                .padding()
-            } else {
-                Button(action: onScanTapped) {
-                    Label("Scan for Sensors", systemImage: "sensor.fill")
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                }
-                .disabled(isScanning)
-            }
-        } label: {
-            Text("Scan")
-                .font(.headline)
-        }
-    }
-}
-
-private struct InstructionsSection: View {
-    var body: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("How to Connect")
-                    .font(.headline)
-                
-                VStack(alignment: .leading, spacing: 8) {
-                    BulletPoint("Press and hold the button on your SensorPush device")
-                    BulletPoint("Wait for the LED to start blinking")
-                    BulletPoint("Tap 'Scan for Sensors' above")
-                    BulletPoint("Select your sensor when it appears")
                 }
             }
-            .padding()
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } label: {
-            Text("Instructions")
-                .font(.headline)
+            .alert("Error", isPresented: .constant(error != nil)) {
+                Button("OK") {
+                    error = nil
+                }
+            } message: {
+                if let error = error {
+                    Text(error)
+                }
+            }
         }
     }
-}
-
-private struct BulletPoint: View {
-    let text: String
     
-    init(_ text: String) {
-        self.text = text
-    }
-    
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text("•")
-            Text(text)
+    private func signIn() async {
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            try await sensorPushService.signIn(email: email, password: password)
+            dismiss()
+        } catch {
+            self.error = error.localizedDescription
         }
-        .foregroundStyle(.secondary)
     }
 }
 
 #Preview {
     NavigationStack {
         ConnectSensorView()
-            .environmentObject(SensorPushService())
+            .environmentObject(SensorPushService.shared)
     }
 } 

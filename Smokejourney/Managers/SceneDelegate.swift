@@ -1,12 +1,12 @@
 import UIKit
-import BackgroundTasks
+import SwiftUI
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
+    var window: UIWindow?
+    
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
-        // Ensure background tasks are configured
-        DispatchQueue.main.async {
-            BackgroundTaskHandler.shared.setupBackgroundTasks()
-        }
+        // Use the shared instance
+        _ = BackgroundTaskHandler.shared
     }
     
     func sceneDidDisconnect(_ scene: UIScene) {
@@ -14,10 +14,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
     
     func sceneDidBecomeActive(_ scene: UIScene) {
-        // App became active
+        // Handle scene activation
     }
     
     func sceneWillResignActive(_ scene: UIScene) {
-        // App will resign active
+        // Handle scene deactivation
     }
 } 

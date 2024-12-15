@@ -1,24 +1,26 @@
-import SwiftData
 import Foundation
+import SwiftData
 
 @Model
-final class SensorReading {
+final class SensorReading: Identifiable {
+    var id: String?
     var timestamp: Date?
-    var value: Double?
-    var type: ReadingType?
-    var humidorPersistentID: String?
+    var temperature: Double?
+    var humidity: Double?
+    @Relationship(deleteRule: .nullify) var sensor: Sensor?
+    @Relationship(deleteRule: .nullify) var climateSensor: ClimateSensor?
     
-    var sensor: Sensor?
-    
-    init(timestamp: Date = Date(), value: Double, type: ReadingType, humidorPersistentID: String) {
+    init(id: String = UUID().uuidString,
+         timestamp: Date = Date(),
+         temperature: Double,
+         humidity: Double,
+         sensor: Sensor? = nil,
+         climateSensor: ClimateSensor? = nil) {
+        self.id = id
         self.timestamp = timestamp
-        self.value = value
-        self.type = type
-        self.humidorPersistentID = humidorPersistentID
-    }
-    
-    enum ReadingType: Int, Codable {
-        case temperature
-        case humidity
+        self.temperature = temperature
+        self.humidity = humidity
+        self.sensor = sensor
+        self.climateSensor = climateSensor
     }
 } 

@@ -86,7 +86,7 @@ struct ProfileView: View {
                     
                     Section("Climate") {
                         NavigationLink {
-                            EnvironmentalMonitoringTabView()
+                            ClimateView(modelContext: modelContext)
                         } label: {
                             HStack {
                                 Image(systemName: "thermometer")

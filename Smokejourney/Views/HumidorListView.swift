@@ -1,71 +1,63 @@
 import SwiftUI
 import SwiftData
-import os.log
 
 struct HumidorListView: View {
-    @Environment(\.modelContext) var modelContext
+    @Environment(\.modelContext) private var modelContext
     @Query private var humidors: [Humidor]
     @State private var showAddHumidor = false
-    private let logger = Logger(subsystem: "com.smokejourney", category: "HumidorListView")
     
     var body: some View {
-        NavigationStack {
-            List {
-                ForEach(humidors) { humidor in
-                    NavigationLink(destination: HumidorDetailView(humidor: humidor)) {
-                        HumidorRowView(humidor: humidor)
-                    }
+        Group {
+            if humidors.isEmpty {
+                ContentUnavailableView {
+                    Label("No Humidors", systemImage: "humidor.fill")
+                } description: {
+                    Text("Add a humidor to start tracking your collection")
+                } actions: {
+                    addButton
                 }
-                .onDelete(perform: deleteHumidors)
-            }
-            .navigationTitle("Humidors")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showAddHumidor = true }) {
-                        Image(systemName: "plus")
-                    }
-                }
-            }
-            .sheet(isPresented: $showAddHumidor) {
-                NavigationStack {
-                    AddHumidorView()
-                }
-            }
-            .overlay {
-                if humidors.isEmpty {
-                    ContentUnavailableView {
-                        Label("No Humidors", systemImage: "cabinet")
-                    } description: {
-                        Text("Add a humidor to start tracking your cigars")
-                    } actions: {
-                        Button(action: { showAddHumidor = true }) {
-                            Text("Add Humidor")
-                        }
-                    }
-                }
+            } else {
+                humidorList
             }
         }
-        .onAppear {
-            logger.debug("HumidorListView appeared, humidor count: \(humidors.count)")
+        .navigationTitle("Humidors")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                addButton
+            }
         }
-        .onChange(of: humidors) { oldValue, newValue in
-            logger.debug("Humidors changed: Old count: \(oldValue.count), New count: \(newValue.count)")
+        .sheet(isPresented: $showAddHumidor) {
+            AddHumidorView()
         }
     }
     
-    private func deleteHumidors(_ indexSet: IndexSet) {
-        for index in indexSet {
-            deleteHumidor(humidors[index])
+    private var addButton: some View {
+        Button(action: { showAddHumidor = true }) {
+            Label("Add Humidor", systemImage: "plus")
         }
     }
     
-    private func deleteHumidor(_ humidor: Humidor) {
-        Task {
-            do {
-                try await modelContext.deleteWithCloudKit(humidor)
-            } catch {
-                print("Error deleting humidor: \(error)")
+    private var humidorList: some View {
+        List {
+            ForEach(humidors) { humidor in
+                NavigationLink(value: humidor) {
+                    HumidorRow(humidor: humidor)
+                }
             }
+            .onDelete(perform: deleteHumidors)
         }
     }
-} 
+    
+    private func deleteHumidors(at offsets: IndexSet) {
+        for index in offsets {
+            modelContext.delete(humidors[index])
+        }
+    }
+}
+
+#Preview {
+    NavigationStack {
+        HumidorListView()
+    }
+    .modelContainer(for: Humidor.self, inMemory: true)
+}

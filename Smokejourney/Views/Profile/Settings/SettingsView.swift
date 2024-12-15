@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import UserNotifications
+import SensorKit
 
 // Add explicit module name if needed
 typealias NotificationSettings = NotificationSettingsView
@@ -62,7 +63,7 @@ struct SettingsView: View {
             // Integrations Settings
             Section {
                 NavigationLink {
-                    IntegrationsSettingsView()
+                    Smokejourney.IntegrationsSettingsView()
                 } label: {
                     Label("Integrations", systemImage: "link")
                 }

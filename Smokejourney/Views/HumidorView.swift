@@ -4,13 +4,13 @@ import SwiftData
 struct HumidorView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var humidors: [Humidor]
-    @State private var showAddHumidor = false
+    @State private var showingAddHumidor = false
     
     var body: some View {
         NavigationStack {
             List {
                 ForEach(humidors) { humidor in
-                    NavigationLink(destination: HumidorDetailView(humidor: humidor)) {
+                    NavigationLink(destination: HumidorDetailView(humidor: humidor, modelContext: modelContext)) {
                         HumidorRowView(humidor: humidor)
                     }
                 }
@@ -18,15 +18,15 @@ struct HumidorView: View {
             }
             .navigationTitle("Humidors")
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showAddHumidor = true }) {
+                ToolbarItem(placement: .primaryAction) {
+                    Button(action: { showingAddHumidor = true }) {
                         Image(systemName: "plus")
                     }
                 }
             }
-            .sheet(isPresented: $showAddHumidor) {
+            .sheet(isPresented: $showingAddHumidor) {
                 NavigationStack {
-                    AddHumidorView()
+                    HumidorCreateView()
                 }
             }
             .overlay {
@@ -36,7 +36,7 @@ struct HumidorView: View {
                     } description: {
                         Text("Add a humidor to start tracking your cigars")
                     } actions: {
-                        Button(action: { showAddHumidor = true }) {
+                        Button(action: { showingAddHumidor = true }) {
                             Text("Add Humidor")
                         }
                     }

@@ -63,7 +63,7 @@ struct SensorPushSettingsView: View {
         
         Task {
             do {
-                try await SensorPushService.shared.authenticate(email: email, password: password)
+                try await SensorPushService.shared.signIn(email: email, password: password)
                 await MainActor.run {
                     isAuthenticated = true
                     isLoading = false

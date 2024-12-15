@@ -8,26 +8,22 @@ struct HumidorDetailView: View {
     // MARK: - Environment & State
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var homeKitManager: HomeKitService
-    @StateObject private var viewModel: HumidorEnvironmentViewModel
+    @EnvironmentObject private var homeKitService: HomeKitService
+    @StateObject private var climateViewModel: ClimateViewModel
     
     @State private var showingDeleteAlert = false
     @State private var showingAddCigar = false
     @State private var showingAddSensor = false
     @State private var showingEditHumidor = false
     @State private var searchText = ""
-    @State private var currentTemperature: Double?
-    @State private var currentHumidity: Double?
-    @State private var selectedTempSensorID: String?
-    @State private var selectedHumiditySensorID: String?
     
     private let logger = Logger(subsystem: "com.smokejourney", category: "HumidorDetail")
     @Bindable var humidor: Humidor
     
     // MARK: - Initialization
-    init(humidor: Humidor) {
+    init(humidor: Humidor, modelContext: ModelContext) {
         self.humidor = humidor
-        _viewModel = StateObject(wrappedValue: HumidorEnvironmentViewModel())
+        _climateViewModel = StateObject(wrappedValue: ClimateViewModel(modelContext: modelContext))
     }
     
     // MARK: - Computed Properties
@@ -73,16 +69,15 @@ struct HumidorDetailView: View {
         }
         .sheet(isPresented: $showingEditHumidor) {
             NavigationStack {
-                EditHumidorView(humidor: humidor)
+                HumidorEditView(humidor: humidor)
             }
         }
         .sheet(isPresented: $showingAddSensor) {
             NavigationStack {
-                HumidorSensorSelectionView(
-                    humidor: humidor,
-                    selectedTempSensorID: $selectedTempSensorID,
-                    selectedHumiditySensorID: $selectedHumiditySensorID
-                )
+                SensorSelectionSheet { sensor in
+                    humidor.climateSensor = sensor
+                    try? modelContext.save()
+                }
             }
         }
         .alert("Delete Humidor?", isPresented: $showingDeleteAlert) {
@@ -95,14 +90,6 @@ struct HumidorDetailView: View {
         }
         .task {
             await setupEnvironmentMonitoring()
-            // Initialize selected sensor IDs from humidor
-            selectedTempSensorID = humidor.homeKitTemperatureSensorID
-            selectedHumiditySensorID = humidor.homeKitHumiditySensorID
-        }
-        .onAppear {
-            Task {
-                await setupCharacteristicNotifications()
-            }
         }
     }
     
@@ -117,44 +104,16 @@ struct HumidorDetailView: View {
     @ViewBuilder
     private var environmentSection: some View {
         Section("Environment") {
-            // Temperature Reading
-            if let tempID = humidor.homeKitTemperatureSensorID,
-               let sensor = homeKitManager.temperatureSensors.first(where: { $0.uniqueIdentifier.uuidString == tempID }) {
-                HStack {
-                    Label("Temperature", systemImage: "thermometer")
-                    Spacer()
-                    if let temp = currentTemperature {
-                        let fahrenheit = (temp * 9/5) + 32
-                        Text(String(format: "%.1f°F", fahrenheit))
-                            .foregroundStyle(sensor.isReachable ? .primary : .secondary)
-                    } else {
-                        Text("--°F")
-                            .foregroundStyle(.secondary)
-                    }
-                    if !sensor.isReachable {
-                        Image(systemName: "wifi.slash")
-                            .foregroundColor(.red)
-                    }
-                }
-            }
-            
-            // Humidity Reading
-            if let humidityID = humidor.homeKitHumiditySensorID,
-               let sensor = homeKitManager.humiditySensors.first(where: { $0.uniqueIdentifier.uuidString == humidityID }) {
-                HStack {
-                    Label("Humidity", systemImage: "humidity")
-                    Spacer()
-                    if let humidity = currentHumidity {
-                        Text(String(format: "%.1f%%", humidity))
-                            .foregroundStyle(sensor.isReachable ? .primary : .secondary)
-                    } else {
-                        Text("--%")
-                            .foregroundStyle(.secondary)
-                    }
-                    if !sensor.isReachable {
-                        Image(systemName: "wifi.slash")
-                            .foregroundColor(.red)
-                    }
+            if let sensor = humidor.climateSensor {
+                CurrentConditionsCard(
+                    viewModel: climateViewModel,
+                    showTitle: false
+                )
+                EnvironmentChartsSection(viewModel: climateViewModel)
+                StabilityMetricsView(viewModel: climateViewModel)
+            } else {
+                Button(action: { showingAddSensor = true }) {
+                    Label("Add Sensor", systemImage: "plus")
                 }
             }
         }
@@ -177,43 +136,6 @@ struct HumidorDetailView: View {
             Spacer()
             ProgressView()
             Spacer()
-        }
-    }
-    
-    @ViewBuilder
-    private var environmentData: some View {
-        HStack {
-            temperatureView
-            Spacer()
-            humidityView
-        }
-        
-        if let error = viewModel.error {
-            Text(error)
-                .foregroundColor(.red)
-                .font(.caption)
-        }
-    }
-    
-    @ViewBuilder
-    private var temperatureView: some View {
-        if let temp = viewModel.temperature {
-            Label(String(format: "%.1f°F", temp), systemImage: "thermometer")
-                .foregroundColor(viewModel.temperatureStatus.color)
-        } else {
-            Label("--°F", systemImage: "thermometer")
-                .foregroundColor(.secondary)
-        }
-    }
-    
-    @ViewBuilder
-    private var humidityView: some View {
-        if let humidity = viewModel.humidity {
-            Label(String(format: "%.1f%%", humidity), systemImage: "humidity")
-                .foregroundColor(viewModel.humidityStatus.color)
-        } else {
-            Label("--%", systemImage: "humidity")
-                .foregroundColor(.secondary)
         }
     }
     
@@ -282,91 +204,8 @@ struct HumidorDetailView: View {
     }
     
     private func setupEnvironmentMonitoring() async {
-        // Setup existing SensorPush monitoring
-        await viewModel.fetchSensors()
-        if let sensorId = humidor.sensorId {
-            await viewModel.fetchLatestSample(for: sensorId)
-            await viewModel.loadHistoricalData(sensorId: sensorId)
-        }
-        
-        // Setup HomeKit monitoring if enabled
-        if humidor.homeKitEnabled {
-            await refreshHomeKitData()
-        }
-    }
-    
-    private func refreshEnvironmentData() async {
-        if let sensorId = humidor.sensorId {
-            await viewModel.fetchLatestSample(for: sensorId)
-        }
-    }
-    
-    private func refreshHomeKitData() async {
-        // Get temperature reading
-        if let tempID = humidor.homeKitTemperatureSensorID,
-           let sensor = homeKitManager.temperatureSensors.first(where: { $0.uniqueIdentifier.uuidString == tempID }) {
-            do {
-                currentTemperature = try await homeKitManager.readSensorValue(sensor, type: .temperature)
-            } catch {
-                logger.error("Failed to read temperature: \(error.localizedDescription)")
-            }
-        }
-        
-        // Get humidity reading
-        if let humidityID = humidor.homeKitHumiditySensorID,
-           let sensor = homeKitManager.humiditySensors.first(where: { $0.uniqueIdentifier.uuidString == humidityID }) {
-            do {
-                currentHumidity = try await homeKitManager.readSensorValue(sensor, type: .humidity)
-            } catch {
-                logger.error("Failed to read humidity: \(error.localizedDescription)")
-            }
-        }
-    }
-    
-    // Add HomeKit notification setup
-    private func setupCharacteristicNotifications() async {
-        // Set up temperature notifications
-        if let tempID = humidor.homeKitTemperatureSensorID,
-           let sensor = homeKitManager.temperatureSensors.first(where: { $0.uniqueIdentifier.uuidString == tempID }),
-           let service = sensor.services.first(where: { $0.serviceType == HMServiceTypeTemperatureSensor }),
-           let characteristic = service.characteristics.first(where: { $0.characteristicType == HMCharacteristicTypeCurrentTemperature }) {
-            do {
-                try await characteristic.enableNotification(true)
-                
-                NotificationCenter.default.addObserver(
-                    forName: NSNotification.Name("HMCharacteristicValueUpdateNotification"),
-                    object: characteristic,
-                    queue: .main
-                ) { _ in
-                    if let value = characteristic.value as? Double {
-                        currentTemperature = value
-                    }
-                }
-            } catch {
-                print("Failed to enable temperature notifications: \(error.localizedDescription)")
-            }
-        }
-        
-        // Set up humidity notifications
-        if let humidityID = humidor.homeKitHumiditySensorID,
-           let sensor = homeKitManager.humiditySensors.first(where: { $0.uniqueIdentifier.uuidString == humidityID }),
-           let service = sensor.services.first(where: { $0.serviceType == HMServiceTypeHumiditySensor }),
-           let characteristic = service.characteristics.first(where: { $0.characteristicType == HMCharacteristicTypeCurrentRelativeHumidity }) {
-            do {
-                try await characteristic.enableNotification(true)
-                
-                NotificationCenter.default.addObserver(
-                    forName: NSNotification.Name("HMCharacteristicValueUpdateNotification"),
-                    object: characteristic,
-                    queue: .main
-                ) { _ in
-                    if let value = characteristic.value as? Double {
-                        currentHumidity = value
-                    }
-                }
-            } catch {
-                print("Failed to enable humidity notifications: \(error.localizedDescription)")
-            }
+        if let sensor = humidor.climateSensor {
+            await climateViewModel.loadSensorData(for: sensor)
         }
     }
 }

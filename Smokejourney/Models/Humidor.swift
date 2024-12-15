@@ -9,18 +9,16 @@ final class Humidor {
     // MARK: - Properties
     var name: String?
     var capacity: Int?
+    var notes: String?
     var humidorDescription: String?
     var location: String?
     var createdAt: Date?
-    @Relationship(deleteRule: .cascade)
-    var cigars: [Cigar]?
+    @Relationship(deleteRule: .cascade, inverse: \Cigar.humidor) var cigars: [Cigar]?
     var sensorId: String?
     
-    @Relationship(deleteRule: .cascade)
-    var sensors: [Sensor]?
-    
-    var targetHumidity: Double?
-    var targetTemperature: Double?
+    @Relationship(deleteRule: .cascade, inverse: \Sensor.humidor) var sensors: [Sensor]?
+    @Relationship(deleteRule: .nullify, inverse: \ClimateSensor.humidor) var climateSensor: ClimateSensor?
+    @Relationship(deleteRule: .cascade, inverse: \EnvironmentSettings.humidor) var environmentSettings: EnvironmentSettings?
     
     // MARK: - HomeKit Properties
     var homeKitEnabled: Bool = false
@@ -28,9 +26,6 @@ final class Humidor {
     var homeKitAccessoryIdentifier: String?
     var homeKitTemperatureSensorID: String?
     var homeKitHumiditySensorID: String?
-    
-    @Relationship(deleteRule: .cascade)
-    var environmentSettings: EnvironmentSettings?
     
     // MARK: - Constants
     private enum Constants {
@@ -52,7 +47,6 @@ final class Humidor {
         self.location = location
         self.createdAt = Date()
         self.cigars = []
-        self.sensorId = nil
     }
     
     convenience init() {

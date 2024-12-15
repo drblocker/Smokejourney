@@ -3,7 +3,7 @@ import HomeKit
 
 struct AddAutomationView: View {
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var homeKit = HomeKitService.shared
+    @EnvironmentObject private var homeKit: HomeKitService
     
     // MARK: - State Properties
     @State private var name = ""

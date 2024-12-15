@@ -2,35 +2,26 @@ import SwiftData
 import Foundation
 
 @Model
-final class Sensor {
-    // MARK: - Properties
+final class Sensor: Identifiable {
     var id: String?
     var name: String?
-    var type: SensorType?
     var customName: String?
     var location: String?
+    var type: SensorType?
+    @Relationship(deleteRule: .cascade) var readings: [SensorReading]?
+    @Relationship(deleteRule: .nullify) var humidor: Humidor?
     
-    // MARK: - Relationships
-    @Relationship(inverse: \Humidor.sensors)
-    var humidor: Humidor?
-    
-    @Relationship(deleteRule: .cascade)
-    var readings: [SensorReading]?
-    
-    var lastReading: SensorReading? {
-        readings?.max(by: { ($0.timestamp ?? Date.distantPast) < ($1.timestamp ?? Date.distantPast) })
-    }
-    
-    // MARK: - Computed Properties
     var displayName: String {
-        customName ?? name ?? "Unnamed Sensor"
+        customName ?? name ?? ""
     }
     
-    // MARK: - Initialization
-    init(id: String, name: String, type: SensorType) {
+    init(id: String = UUID().uuidString,
+         name: String,
+         type: SensorType,
+         readings: [SensorReading] = []) {
         self.id = id
         self.name = name
         self.type = type
-        self.readings = []
+        self.readings = readings
     }
 }

@@ -1,214 +1,146 @@
 import Foundation
-import SwiftUI
-
-// MARK: - Models
-struct SensorPushDevice: Identifiable, Codable {
-    let id: String
-    let deviceId: String
-    let name: String?
-    let location: String?
-    let active: Bool
-    let batteryVoltage: Double
-    let rssi: Int
-    
-    var displayName: String {
-        return name ?? deviceId
-    }
-}
-
-struct SensorSample: Codable {
-    let time: Date
-    let temperature: Double
-    let humidity: Double
-}
-
-enum SensorPushError: LocalizedError {
-    case unauthorized
-    case invalidCredentials
-    case networkError(Error)
-    case invalidResponse
-    case unknown
-    case authenticationFailed(message: String)
-    case scanningFailed
-    case connectionFailed
-    
-    var errorDescription: String? {
-        switch self {
-        case .unauthorized:
-            return "Not authorized. Please sign in."
-        case .invalidCredentials:
-            return "Invalid email or password"
-        case .networkError(let error):
-            return "Network error: \(error.localizedDescription)"
-        case .invalidResponse:
-            return "Invalid response from server"
-        case .unknown:
-            return "An unknown error occurred"
-        case .authenticationFailed(let message):
-            return message
-        case .scanningFailed:
-            return "Failed to scan for sensors"
-        case .connectionFailed:
-            return "Failed to connect to sensor"
-        }
-    }
-}
+import os.log
 
 @MainActor
 final class SensorPushService: ObservableObject {
     static let shared = SensorPushService()
+    private let logger = Logger(subsystem: "com.smokejourney", category: "SensorPush")
     
-    @Published var isAuthorized = false
-    @Published var sensors: [SensorPushDevice] = []
-    @Published var isLoading = false
+    @Published private(set) var isAuthorized = false
+    @Published private(set) var isLoading = false
+    @Published private(set) var sensors: [SensorPushDevice] = []
+    @Published private(set) var latestSamples: [String: SensorKit.SensorReading] = [:]
     
-    private let api = SensorPushAPI()
-    private let keychain = KeychainWrapper.standard
-    
-    func authenticate(email: String, password: String) async throws {
-        isLoading = true
-        defer { isLoading = false }
-        
-        do {
-            try await api.authenticate(email: email, password: password)
-            isAuthorized = true
-            keychain.set(email, forKey: "sensorPushEmail")
-            keychain.set(password, forKey: "sensorPushPassword")
-        } catch {
-            throw SensorPushError.invalidCredentials
-        }
+    private var authToken: String? {
+        get { UserDefaults.standard.string(forKey: "sensorPushAuthToken") }
+        set { UserDefaults.standard.set(newValue, forKey: "sensorPushAuthToken") }
     }
     
-    func signOut() {
-        isAuthorized = false
-        keychain.removeObject(forKey: "sensorPushEmail")
-        keychain.removeObject(forKey: "sensorPushPassword")
-        api.clearAuth()
-    }
-    
-    func getSensors() async throws -> [SensorPushDevice] {
-        isLoading = true
-        defer { isLoading = false }
-        
-        do {
-            sensors = try await api.fetchSensors()
-            return sensors
-        } catch {
-            throw SensorPushError.networkError(error)
-        }
-    }
-    
-    func getSamples(for sensorId: String, limit: Int = 1) async throws -> [SensorSample] {
-        do {
-            return try await api.fetchSamples(for: sensorId, limit: limit)
-        } catch {
-            throw SensorPushError.networkError(error)
-        }
-    }
-    
-    func scanForSensors() async throws -> Bool {
-        // Simulate scanning for now - replace with actual SensorPush API implementation
-        do {
-            // Add artificial delay to simulate scanning
-            try await Task.sleep(nanoseconds: 2 * 1_000_000_000) // 2 seconds
-            
-            // Here you would:
-            // 1. Start Bluetooth scanning
-            // 2. Look for SensorPush devices
-            // 3. Update the sensors array with found devices
-            
-            // For testing, simulate finding a sensor 50% of the time
-            let foundSensor = Bool.random()
-            if foundSensor {
-                let newSensor = SensorPushDevice(
-                    id: UUID().uuidString,
-                    deviceId: "SP-TEST",
-                    name: "Test Sensor",
-                    location: nil,
-                    active: true,
-                    batteryVoltage: 0.0,
-                    rssi: 0
-                )
-                sensors.append(newSensor)
-            }
-            
-            return foundSensor
-        } catch {
-            throw SensorPushError.scanningFailed
-        }
-    }
-}
-
-// MARK: - API Client
-private class SensorPushAPI {
     private let baseURL = URL(string: "https://api.sensorpush.com/api/v1")!
-    private var authToken: String?
+    private let session = URLSession.shared
     
-    func clearAuth() {
-        authToken = nil
+    private init() {
+        isAuthorized = authToken != nil
     }
     
-    func authenticate(email: String, password: String) async throws {
+    func fetchSensors() async throws {
+        guard let token = authToken else {
+            throw SensorError.unauthorized
+        }
+        
+        let sensorsURL = baseURL.appendingPathComponent("devices/sensors")
+        var request = URLRequest(url: sensorsURL)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let (data, _) = try await session.data(for: request)
+        sensors = try JSONDecoder().decode([SensorPushDevice].self, from: data)
+        
+        // Fetch initial readings for each sensor
+        for device in sensors {
+            if let reading = try await fetchLatestReading(for: device.id) {
+                latestSamples[device.id] = reading
+            }
+        }
+    }
+    
+    func fetchLatestReading(for deviceId: String) async throws -> SensorKit.SensorReading? {
+        let samples = try await fetchSamples(for: deviceId, from: Date().addingTimeInterval(-300), limit: 1)
+        guard let sample = samples.first else { return nil }
+        
+        return SensorKit.SensorReading(
+            timestamp: sample.time,
+            temperature: sample.temperature,
+            humidity: sample.humidity
+        )
+    }
+    
+    func fetchSamples(for deviceId: String, from: Date, limit: Int = 100) async throws -> [SensorPushSample] {
+        guard let token = authToken else {
+            throw SensorError.unauthorized
+        }
+        
+        let samplesURL = baseURL.appendingPathComponent("samples")
+        var request = URLRequest(url: samplesURL)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let query = SampleQuery(
+            sensors: [deviceId],
+            startTime: from,
+            stopTime: Date(),
+            limit: limit
+        )
+        request.httpBody = try JSONEncoder().encode(query)
+        
+        let (data, _) = try await session.data(for: request)
+        return try JSONDecoder().decode([SensorPushSample].self, from: data)
+    }
+    
+    func signIn(email: String, password: String) async throws {
+        isLoading = true
+        defer { isLoading = false }
+        
+        // First, get an authorization token
+        let authRequest = AuthRequest(email: email, password: password)
         let authURL = baseURL.appendingPathComponent("oauth/authorize")
+        
         var request = URLRequest(url: authURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(authRequest)
         
-        let credentials = ["email": email, "password": password]
-        request.httpBody = try JSONEncoder().encode(credentials)
+        let (authData, _) = try await session.data(for: request)
+        let authResponse = try JSONDecoder().decode(AuthResponse.self, from: authData)
         
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200,
-              let token = try JSONDecoder().decode([String: String].self, from: data)["access_token"] else {
-            throw SensorPushError.invalidCredentials
-        }
-        
-        authToken = token
-    }
-    
-    func fetchSensors() async throws -> [SensorPushDevice] {
-        guard let authToken else { throw SensorPushError.unauthorized }
-        
-        let url = baseURL.appendingPathComponent("devices/sensors")
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            throw SensorPushError.invalidResponse
-        }
-        
-        return try JSONDecoder().decode([SensorPushDevice].self, from: data)
-    }
-    
-    func fetchSamples(for sensorId: String, limit: Int) async throws -> [SensorSample] {
-        guard let authToken else { throw SensorPushError.unauthorized }
-        
-        let url = baseURL.appendingPathComponent("samples")
-        var request = URLRequest(url: url)
+        // Then, use the authorization token to get an access token
+        let accessURL = baseURL.appendingPathComponent("oauth/accesstoken")
+        request = URLRequest(url: accessURL)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(["authorization": authResponse.authorization])
         
-        struct SamplesRequest: Encodable {
-            let sensors: [String]
-            let limit: Int
-        }
+        let (accessData, _) = try await session.data(for: request)
+        let accessResponse = try JSONDecoder().decode(AccessResponse.self, from: accessData)
         
-        let requestBody = SamplesRequest(sensors: [sensorId], limit: limit)
-        request.httpBody = try JSONEncoder().encode(requestBody)
+        authToken = accessResponse.accesstoken
+        isAuthorized = true
         
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            throw SensorPushError.invalidResponse
-        }
-        
-        return try JSONDecoder().decode([SensorSample].self, from: data)
+        // Fetch sensors after successful authentication
+        try await fetchSensors()
+    }
+    
+    func signOut() {
+        authToken = nil
+        isAuthorized = false
+        sensors = []
+    }
+}
+
+// MARK: - Supporting Types
+private struct AuthRequest: Codable {
+    let email: String
+    let password: String
+}
+
+private struct AuthResponse: Codable {
+    let authorization: String
+}
+
+private struct AccessResponse: Codable {
+    let accesstoken: String
+}
+
+private struct SampleQuery: Codable {
+    let sensors: [String]
+    let startTime: Date
+    let stopTime: Date
+    let limit: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case sensors
+        case startTime = "time_start"
+        case stopTime = "time_stop"
+        case limit
     }
 }

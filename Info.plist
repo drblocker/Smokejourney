@@ -1,0 +1,2 @@
+<key>NSHomeKitUsageDescription</key>
+<string>This app needs access to HomeKit to monitor temperature and humidity from your HomeKit accessories.</string> 

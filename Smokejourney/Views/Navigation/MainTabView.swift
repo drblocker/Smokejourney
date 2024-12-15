@@ -2,28 +2,30 @@ import SwiftUI
 import SwiftData
 
 struct MainTabView: View {
-    @State private var selectedTab = 0
-    @EnvironmentObject private var authManager: AuthenticationManager
+    @Environment(\.modelContext) private var modelContext
     
     var body: some View {
-        TabView(selection: $selectedTab) {
-            HumidorListView()
-                .tabItem {
-                    Label("Humidors", systemImage: "cabinet")
-                }
-                .tag(0)
+        TabView {
+            NavigationStack {
+                HumidorListView()
+            }
+            .tabItem {
+                Label("Humidors", systemImage: "cabinet")
+            }
             
-            ClimateView()
-                .tabItem {
-                    Label("Climate", systemImage: "thermometer")
-                }
-                .tag(1)
+            NavigationStack {
+                ClimateView(modelContext: modelContext)
+            }
+            .tabItem {
+                Label("Climate", systemImage: "thermometer")
+            }
             
-            ProfileView()
-                .tabItem {
-                    Label("Profile", systemImage: "person.circle")
-                }
-                .tag(2)
+            NavigationStack {
+                ProfileView()
+            }
+            .tabItem {
+                Label("Profile", systemImage: "person")
+            }
         }
     }
 }
@@ -31,5 +33,4 @@ struct MainTabView: View {
 #Preview {
     MainTabView()
         .modelContainer(for: User.self, inMemory: true)
-        .environmentObject(AuthenticationManager.shared)
 } 

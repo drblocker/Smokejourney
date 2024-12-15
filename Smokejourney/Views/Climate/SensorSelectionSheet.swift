@@ -1,47 +1,42 @@
 import SwiftUI
 import SwiftData
+import HomeKit
 
 struct SensorSelectionSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var sensorPushManager: SensorPushService
-    @EnvironmentObject private var homeKitManager: HomeKitService
-    @State private var sensorType: SensorType = .sensorPush
+    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var homeKitService: HomeKitService
+    @EnvironmentObject private var sensorPushService: SensorPushService
+    
+    let onSelect: (ClimateSensor) -> Void
+    
+    @State private var sensorType: SensorType = .homeKit
+    @State private var showingHomeKitAuth = false
+    @State private var showingSensorPushAuth = false
     @State private var showingSensorList = false
-    @State private var showingAuth = false
-    let onSelect: (String?, ClimateSensor.SensorType) -> Void
     
     var body: some View {
         List {
             Section {
                 Picker("Sensor Type", selection: $sensorType) {
-                    Text("SensorPush").tag(SensorType.sensorPush)
                     Text("HomeKit").tag(SensorType.homeKit)
+                    Text("SensorPush").tag(SensorType.sensorPush)
                 }
                 .pickerStyle(.segmented)
-                .listRowInsets(EdgeInsets())
-                .padding()
             }
             
-            Section {
-                Button {
-                    if sensorType == .sensorPush && !sensorPushManager.isAuthorized {
-                        showingAuth = true
-                    } else if sensorType == .homeKit && !homeKitManager.isAuthorized {
-                        showingAuth = true
-                    } else {
-                        showingSensorList = true
-                    }
-                } label: {
-                    HStack {
-                        Label(
-                            sensorType == .sensorPush ? "Select SensorPush Device" : "Select HomeKit Device",
-                            systemImage: sensorType == .sensorPush ? "sensor.fill" : "homekit"
-                        )
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .foregroundStyle(.secondary)
-                    }
-                }
+            if sensorType == .homeKit {
+                HomeKitSection(
+                    isAuthorized: homeKitService.isAuthorized,
+                    showingAuth: $showingHomeKitAuth,
+                    showingSensorList: $showingSensorList
+                )
+            } else {
+                SensorPushSection(
+                    isAuthorized: sensorPushService.isAuthorized,
+                    showingAuth: $showingSensorPushAuth,
+                    showingSensorList: $showingSensorList
+                )
             }
         }
         .navigationTitle("Add Sensor")
@@ -53,52 +48,113 @@ struct SensorSelectionSheet: View {
                 }
             }
         }
-        .sheet(isPresented: $showingSensorList) {
-            NavigationStack {
-                if sensorType == .sensorPush {
-                    SensorPushSelectionView { sensorId in
-                        onSelect(sensorId, .sensorPush)
-                        dismiss()
-                    }
-                } else {
-                    HomeKitSensorSelectionView { sensorId in
-                        onSelect(sensorId, .homeKit)
-                        dismiss()
-                    }
-                }
-            }
+        .sheet(isPresented: $showingHomeKitAuth) {
+            HomeKitAuthView()
         }
-        .sheet(isPresented: $showingAuth) {
-            NavigationStack {
-                if sensorType == .sensorPush {
-                    SensorPushLoginView { success in
-                        if success {
-                            showingAuth = false
-                            showingSensorList = true
-                        }
-                    }
-                } else {
-                    HomeKitSetupView { success in
-                        if success {
-                            showingAuth = false
-                            showingSensorList = true
-                        }
-                    }
+        .sheet(isPresented: $showingSensorPushAuth) {
+            SensorPushAuthView()
+        }
+        .sheet(isPresented: $showingSensorList) {
+            if sensorType == .homeKit {
+                HomeKitSensorListView { accessory in
+                    saveSensor(HomeKitSensor(accessory: accessory))
+                    dismiss()
+                }
+            } else {
+                SensorPushListView { device in
+                    saveSensor(SensorPushSensor(device: device))
+                    dismiss()
                 }
             }
         }
     }
     
-    enum SensorType {
-        case sensorPush
-        case homeKit
+    private func saveSensor(_ sensor: any EnvironmentalSensor) {
+        let climateSensor = ClimateSensor(
+            id: sensor.id,
+            name: sensor.name,
+            type: sensor.type
+        )
+        modelContext.insert(climateSensor)
+        onSelect(climateSensor)
+    }
+}
+
+// MARK: - Supporting Views
+private struct SensorPushSection: View {
+    let isAuthorized: Bool
+    @Binding var showingAuth: Bool
+    @Binding var showingSensorList: Bool
+    
+    var body: some View {
+        Section {
+            Button {
+                if isAuthorized {
+                    showingSensorList = true
+                } else {
+                    showingAuth = true
+                }
+            } label: {
+                HStack {
+                    Label("SensorPush Devices", systemImage: "sensor.fill")
+                    Spacer()
+                    if isAuthorized {
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Sign In Required")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        } footer: {
+            if !isAuthorized {
+                Text("Sign in to your SensorPush account to access your sensors.")
+            }
+        }
+    }
+}
+
+private struct HomeKitSection: View {
+    let isAuthorized: Bool
+    @Binding var showingAuth: Bool
+    @Binding var showingSensorList: Bool
+    
+    var body: some View {
+        Section {
+            Button {
+                if isAuthorized {
+                    showingSensorList = true
+                } else {
+                    showingAuth = true
+                }
+            } label: {
+                HStack {
+                    Label("HomeKit Devices", systemImage: "homekit")
+                    Spacer()
+                    if isAuthorized {
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Setup Required")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        } footer: {
+            if !isAuthorized {
+                Text("Allow access to your HomeKit accessories to monitor temperature and humidity.")
+            }
+        }
     }
 }
 
 #Preview {
     NavigationStack {
-        SensorSelectionSheet { _, _ in }
-            .environmentObject(SensorPushService())
-            .environmentObject(HomeKitService())
+        SensorSelectionSheet { sensor in
+            print("Selected sensor: \(sensor.name)")
+        }
+        .environmentObject(HomeKitService.shared)
+        .environmentObject(SensorPushService.shared)
     }
 }

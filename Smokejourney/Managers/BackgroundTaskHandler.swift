@@ -3,20 +3,30 @@ import BackgroundTasks
 import UserNotifications
 import os.log
 import SwiftUI
+import SwiftData
 
 @MainActor
 final class BackgroundTaskHandler {
-    static let shared = BackgroundTaskHandler()
-    static let taskIdentifier = "com.jason.smokejourney.sync"
+    static let shared: BackgroundTaskHandler = {
+        guard let modelContainer = try? ModelContainer(for: ClimateSensor.self) else {
+            fatalError("Failed to create model container for BackgroundTaskHandler")
+        }
+        return BackgroundTaskHandler(modelContext: modelContainer.mainContext)
+    }()
+    
+    static let taskIdentifier = "com.smokejourney.sync"
     private var isRegistered = false
-    private let logger = Logger(subsystem: "com.jason.smokejourney", category: "BackgroundTask")
+    private let logger = Logger(subsystem: "com.smokejourney", category: "BackgroundTask")
+    private let sensorManager: SensorManager
+    private let modelContext: ModelContext
     private let sensorPushService = SensorPushService.shared
-    private let environmentViewModel = HumidorEnvironmentViewModel()
     private var lastSuccessfulSync: Date?
     private var failedAttempts = 0
     private let maxFailedAttempts = 3
     
-    private init() {
+    init(modelContext: ModelContext) {
+        self.modelContext = modelContext
+        self.sensorManager = SensorManager()
         setupBackgroundTasks()
         setupAppLifecycleObservers()
     }
@@ -39,10 +49,8 @@ final class BackgroundTaskHandler {
     
     @objc private func appWillEnterForeground() {
         Task {
-            if let sensor = await environmentViewModel.sensors.first {
-                await environmentViewModel.fetchLatestSample(for: sensor.id)
-            }
-            scheduleBackgroundTask() // Reschedule after coming to foreground
+            try? await refreshSensorData()
+            scheduleBackgroundTask()
         }
     }
     
@@ -50,79 +58,23 @@ final class BackgroundTaskHandler {
         scheduleBackgroundTask() // Ensure task is scheduled when going to background
     }
     
-    private func refreshSensorData() async {
-        guard UserDefaults.standard.bool(forKey: "sensorPushAuthenticated") else {
-            logger.debug("Skipping sensor refresh - not authenticated")
-            return
+    private func setupBackgroundTasks() {
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.taskIdentifier, using: nil) { task in
+            self.handleBackgroundTask(task as! BGAppRefreshTask)
         }
-        
-        do {
-            let sensors = try await sensorPushService.getSensors()
-            for sensor in sensors {
-                await environmentViewModel.fetchLatestSample(for: sensor.id)
-                let samples = try await sensorPushService.getSamples(for: sensor.id, limit: 1)
-                if let latestSample = samples.first {
-                    await checkEnvironmentalConditions(latestSample)
-                }
-                logger.debug("Successfully fetched data for sensor: \(sensor.id)")
-            }
-            lastSuccessfulSync = Date()
-            failedAttempts = 0
-        } catch {
-            logger.error("Failed to refresh sensor data: \(error.localizedDescription)")
-            handleSyncFailure(error: error)
-        }
-    }
-    
-    func setupBackgroundTasks() {
-        registerBackgroundTask()
-        setupNotifications()
-        scheduleBackgroundTask() // Initial schedule
-    }
-    
-    private func setupNotifications() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-            if let error = error {
-                self.logger.error("Failed to request notification authorization: \(error.localizedDescription)")
-            }
-        }
-    }
-    
-    private func registerBackgroundTask() {
-        guard !isRegistered else {
-            logger.debug("Background task already registered")
-            return
-        }
-        
-        BGTaskScheduler.shared.register(
-            forTaskWithIdentifier: Self.taskIdentifier,
-            using: nil
-        ) { [weak self] task in
-            self?.handleBackgroundTask(task: task as! BGAppRefreshTask)
-        }
-        
         isRegistered = true
-        logger.debug("Successfully registered background task")
+        scheduleBackgroundTask()
     }
     
-    private func handleBackgroundTask(task: BGAppRefreshTask) {
-        logger.debug("Starting background task")
-        
+    private func handleBackgroundTask(_ task: BGAppRefreshTask) {
         let queue = OperationQueue()
         queue.maxConcurrentOperationCount = 1
-        
-        task.expirationHandler = { [weak self] in
-            queue.cancelAllOperations()
-            self?.logger.error("Background task expired")
-            task.setTaskCompleted(success: false)
-        }
         
         let operation = BlockOperation {
             Task { [weak self] in
                 do {
-                    try await self?.performSensorSync()
+                    try await self?.refreshSensorData()
                     task.setTaskCompleted(success: true)
-                    self?.logger.debug("Background sensor sync completed successfully")
                     await self?.scheduleBackgroundTask()
                 } catch {
                     self?.logger.error("Background sensor sync failed: \(error.localizedDescription)")
@@ -134,25 +86,25 @@ final class BackgroundTaskHandler {
         queue.addOperation(operation)
     }
     
-    private func performSensorSync() async throws {
-        let sensors = try await sensorPushService.getSensors()
-        guard let firstSensor = sensors.first else {
-            logger.debug("No sensors available")
-            return
+    private func refreshSensorData() async throws {
+        for sensor in sensorManager.sensors {
+            try await sensor.fetchCurrentReading()
+            let historicalData = try await sensor.fetchHistoricalData(timeRange: .day)
+            sensorManager.updateReadings(for: sensor.id, with: historicalData)
+            
+            // Check environmental conditions for each reading
+            if let reading = historicalData.last {
+                await checkEnvironmentalConditions(reading)
+            }
         }
         
-        let samples = try await sensorPushService.getSamples(for: firstSensor.id, limit: 1)
-        if let latestSample = samples.first {
-            await checkEnvironmentalConditions(latestSample)
-            await environmentViewModel.fetchLatestSample(for: firstSensor.id)
-            lastSuccessfulSync = Date()
-            failedAttempts = 0
-        }
+        lastSuccessfulSync = Date()
+        failedAttempts = 0
     }
     
-    private func checkEnvironmentalConditions(_ sample: SensorSample) async {
-        let temperature = sample.temperature
-        let humidity = sample.humidity
+    private func checkEnvironmentalConditions(_ reading: SensorKit.SensorReading) async {
+        let temperature = reading.temperature
+        let humidity = reading.humidity
         
         // Check temperature thresholds
         let tempLowAlert = UserDefaults.standard.double(forKey: "tempLowAlert")

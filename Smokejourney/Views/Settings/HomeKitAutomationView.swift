@@ -2,7 +2,7 @@ import SwiftUI
 import HomeKit
 
 struct HomeKitAutomationView: View {
-    @StateObject private var homeKit = HomeKitService.shared
+    @EnvironmentObject private var homeKit: HomeKitService
     @State private var showAddAutomation = false
     @State private var selectedTrigger: AutomationTrigger?
     @State private var selectedAction: AutomationAction?
@@ -18,7 +18,7 @@ struct HomeKitAutomationView: View {
             }
             
             Section("Active Automations") {
-                if let home = homeKit.currentHome {
+                if let home = homeKit.home {
                     ForEach(home.triggers, id: \.uniqueIdentifier) { trigger in
                         if let eventTrigger = trigger as? HMEventTrigger {
                             AutomationRow(trigger: eventTrigger)
@@ -30,6 +30,7 @@ struct HomeKitAutomationView: View {
         .navigationTitle("Automations")
         .sheet(isPresented: $showAddAutomation) {
             AddAutomationView()
+                .environmentObject(homeKit)
         }
         .alert("Error", isPresented: $showError, presenting: error) { _ in
             Button("OK", role: .cancel) { }
@@ -62,5 +63,8 @@ struct AutomationRow: View {
 }
 
 #Preview {
-    HomeKitAutomationView()
+    NavigationStack {
+        HomeKitAutomationView()
+            .environmentObject(HomeKitService.shared)
+    }
 } 
